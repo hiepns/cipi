@@ -18,15 +18,44 @@ _ssl_install() {
     app_exists "$app" || { error "App '$app' not found"; exit 1; }
     local d; d=$(app_get "$app" domain)
     [[ -z "$d" ]] && { error "No domain for app '$app'"; exit 1; }
+
+    # Pre-flight: nginx vhost must exist
+    if [[ ! -f "/etc/nginx/sites-available/${app}" ]]; then
+        error "Nginx vhost for '${app}' not found. Create the app first."
+        exit 1
+    fi
+
+    # Pre-flight: nginx must be serving the domain on port 80
+    if ! nginx -t 2>/dev/null; then
+        error "Nginx config test failed. Fix nginx errors before installing SSL."
+        exit 1
+    fi
+
     local domains="-d ${d}"
     local aliases
     aliases=$(jq -r --arg a "$app" '.[$a].aliases[]?//empty' "${CIPI_CONFIG}/apps.json" 2>/dev/null || true)
     while read -r a; do
         [[ -n "$a" ]] && domains+=" -d ${a}"
     done <<< "${aliases:-}"
+
     echo ""
     step "Installing SSL for ${d}..."
-    if certbot --nginx $domains --non-interactive --agree-tos --register-unsafely-without-email --redirect; then
+    echo ""
+
+    if certbot --nginx $domains \
+        --non-interactive \
+        --agree-tos \
+        --register-unsafely-without-email \
+        --redirect 2>&1; then
+
+        # Force nginx test + reload after certbot modifies the vhost
+        if nginx -t 2>&1; then
+            systemctl reload nginx 2>/dev/null || true
+        else
+            error "Nginx config test failed after certbot modification. Check: nginx -t"
+            exit 1
+        fi
+
         sed -i "s|^APP_URL=http://|APP_URL=https://|" "/home/${app}/shared/.env" 2>/dev/null || true
         log_action "SSL INSTALLED: $app"
         echo ""

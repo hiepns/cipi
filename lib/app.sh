@@ -95,7 +95,7 @@ LOG_CHANNEL=daily
 LOG_LEVEL=error
 
 DB_CONNECTION=mysql
-DB_HOST=localhost
+DB_HOST=127.0.0.1
 DB_PORT=3306
 DB_DATABASE=${app_user}
 DB_USERNAME=${app_user}
@@ -304,7 +304,7 @@ app_delete() {
     step "Workers...";     supervisorctl stop "${app}-worker-*" 2>/dev/null||true; rm -f "/etc/supervisor/conf.d/${app}.conf"; reload_supervisor
     step "Nginx...";       rm -f "/etc/nginx/sites-enabled/${app}" "/etc/nginx/sites-available/${app}"; reload_nginx
     step "PHP-FPM...";     rm -f "/etc/php/${p}/fpm/pool.d/${app}.conf"; reload_php_fpm "$p" 2>/dev/null||true
-    step "Database...";    local dbr; dbr=$(get_db_root_password); mariadb -u root -p"$dbr" -e "DROP DATABASE IF EXISTS \`${app}\`; DROP USER IF EXISTS '${app}'@'localhost'; FLUSH PRIVILEGES;" 2>/dev/null||true
+    step "Database...";    local dbr; dbr=$(get_db_root_password); mariadb -u root -p"$dbr" -e "DROP DATABASE IF EXISTS \`${app}\`; DROP USER IF EXISTS '${app}'@'localhost'; DROP USER IF EXISTS '${app}'@'127.0.0.1'; FLUSH PRIVILEGES;" 2>/dev/null||true
     step "Crontab...";     crontab -u "$app" -r 2>/dev/null||true
     step "Sudoers...";     rm -f "/etc/sudoers.d/cipi-${app}"
     step "SSL...";         certbot delete --cert-name "$d" --non-interactive 2>/dev/null||true

@@ -301,6 +301,7 @@ SQL
 
     cat > /etc/mysql/mariadb.conf.d/99-cipi.cnf <<CNFEOF
 [mysqld]
+bind-address = 127.0.0.1
 innodb_buffer_pool_size = ${BUFFER_POOL}
 innodb_log_file_size = 256M
 innodb_flush_log_at_trx_commit = 2
