@@ -344,14 +344,14 @@ install_redis() {
 # ── PHP (multi-version) ──────────────────────────────────────
 
 install_php() {
-    step_msg "Installing PHP 8.1, 8.2, 8.3, 8.4..."
+    step_msg "Installing PHP 8.4, 8.5..."
 
     add-apt-repository -y ppa:ondrej/php &>/dev/null
     apt-get update -qq
 
     local EXTENSIONS="fpm common cli curl bcmath mbstring mysql sqlite3 pgsql redis memcached zip xml soap gd imagick intl"
 
-    for VER in 8.1 8.2 8.3 8.4; do
+    for VER in 8.4 8.5; do
         echo -e "${CYAN}→ PHP ${VER}...${NC}"
 
         local PACKAGES=""
@@ -370,18 +370,27 @@ max_input_time = 300
 expose_php = Off
 INIEOF
 
-        # Disable default www pool
-        [ -f "/etc/php/${VER}/fpm/pool.d/www.conf" ] && \
-            mv "/etc/php/${VER}/fpm/pool.d/www.conf" "/etc/php/${VER}/fpm/pool.d/www.conf.disabled"
+        # Replace default www pool with a minimal placeholder so FPM can start
+        cat > "/etc/php/${VER}/fpm/pool.d/www.conf" <<POOLEOF
+[www]
+user = www-data
+group = www-data
+listen = /run/php/php${VER}-fpm.sock
+listen.owner = www-data
+listen.group = www-data
+pm = ondemand
+pm.max_children = 2
+pm.process_idle_timeout = 10s
+POOLEOF
 
         systemctl restart "php${VER}-fpm"
         systemctl enable "php${VER}-fpm"
     done
 
-    # Set 8.4 as default CLI
-    update-alternatives --set php /usr/bin/php8.4 2>/dev/null || true
+    # Set 8.5 as default CLI
+    update-alternatives --set php /usr/bin/php8.5 2>/dev/null || true
 
-    echo -e "${GREEN}✓ PHP 8.1, 8.2, 8.3, 8.4${NC}"
+    echo -e "${GREEN}✓ PHP 8.4, 8.5${NC}"
 }
 
 # ── COMPOSER ──────────────────────────────────────────────────
@@ -548,7 +557,7 @@ final_summary() {
     echo -e "  ${BOLD}Stack${NC}"
     echo -e "  Nginx:          ${CYAN}$(nginx -v 2>&1 | awk -F/ '{print $2}')${NC}"
     echo -e "  MariaDB:        ${CYAN}$(mysql --version 2>/dev/null | awk '{print $5}' | tr -d ',')${NC}"
-    echo -e "  PHP:            ${CYAN}8.1, 8.2, 8.3, 8.4${NC}"
+    echo -e "  PHP:            ${CYAN}8.4, 8.5${NC}"
     echo -e "  Redis:          ${CYAN}$(redis-server --version 2>/dev/null | awk '{print $3}' | tr -d 'v=')${NC}"
     echo -e "  Node.js:        ${CYAN}$(node -v 2>/dev/null)${NC}"
     echo -e "  Composer:       ${CYAN}$(composer --version 2>/dev/null | awk '{print $3}')${NC}"
