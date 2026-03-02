@@ -25,7 +25,7 @@ _db_create() {
     [[ -z "$user" ]] && user="$name"
     local pass; pass=$(generate_password 32)
     local dbr; dbr=$(get_db_root_password)
-    mysql -u root -p"$dbr" <<SQL
+    mariadb -u root -p"$dbr" <<SQL
 CREATE DATABASE IF NOT EXISTS \`${name}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 CREATE USER IF NOT EXISTS '${user}'@'localhost' IDENTIFIED BY '${pass}';
 GRANT ALL PRIVILEGES ON \`${name}\`.* TO '${user}'@'localhost';
@@ -44,7 +44,7 @@ _db_list() {
     local dbr; dbr=$(get_db_root_password)
     echo -e "\n${BOLD}Databases${NC}"
     printf "  ${BOLD}%-20s %-15s %s${NC}\n" "DATABASE" "USER" "SIZE"
-    mysql -u root -p"$dbr" -N -e "
+    mariadb -u root -p"$dbr" -N -e "
         SELECT table_schema, ROUND(SUM(data_length+index_length)/1024/1024,2)
         FROM information_schema.tables
         WHERE table_schema NOT IN('information_schema','mysql','performance_schema','sys')
@@ -59,7 +59,7 @@ _db_delete() {
     confirm "Delete database '${name}'?" || return
     local dbr; dbr=$(get_db_root_password)
     local u; u=$(jq -r --arg n "$name" '.[$n].user//$n' "${CIPI_CONFIG}/databases.json" 2>/dev/null)
-    mysql -u root -p"$dbr" -e "DROP DATABASE IF EXISTS \`${name}\`; DROP USER IF EXISTS '${u}'@'localhost'; FLUSH PRIVILEGES;" 2>/dev/null
+    mariadb -u root -p"$dbr" -e "DROP DATABASE IF EXISTS \`${name}\`; DROP USER IF EXISTS '${u}'@'localhost'; FLUSH PRIVILEGES;" 2>/dev/null
     local tmp; tmp=$(mktemp)
     jq --arg n "$name" 'del(.[$n])' "${CIPI_CONFIG}/databases.json">"$tmp"
     mv "$tmp" "${CIPI_CONFIG}/databases.json"; chmod 600 "${CIPI_CONFIG}/databases.json"
@@ -82,8 +82,8 @@ _db_restore() {
     [[ ! -f "$file" ]] && { error "File not found: $file"; exit 1; }
     confirm "Restore '${name}' from '${file}'?" || return
     local dbr; dbr=$(get_db_root_password)
-    if [[ "$file" == *.gz ]]; then gunzip -c "$file"|mysql -u root -p"$dbr" "$name" 2>/dev/null
-    else mysql -u root -p"$dbr" "$name"<"$file" 2>/dev/null; fi
+    if [[ "$file" == *.gz ]]; then gunzip -c "$file"|mariadb -u root -p"$dbr" "$name" 2>/dev/null
+    else mariadb -u root -p"$dbr" "$name"<"$file" 2>/dev/null; fi
     success "'${name}' restored"
 }
 
@@ -92,7 +92,7 @@ _db_password() {
     local dbr; dbr=$(get_db_root_password)
     local u; u=$(jq -r --arg n "$name" '.[$n].user//$n' "${CIPI_CONFIG}/databases.json" 2>/dev/null)
     local np; np=$(generate_password 32)
-    mysql -u root -p"$dbr" -e "ALTER USER '${u}'@'localhost' IDENTIFIED BY '${np}'; FLUSH PRIVILEGES;" 2>/dev/null
+    mariadb -u root -p"$dbr" -e "ALTER USER '${u}'@'localhost' IDENTIFIED BY '${np}'; FLUSH PRIVILEGES;" 2>/dev/null
     echo -e "\n${GREEN}✓${NC} New password for '${u}': ${CYAN}${np}${NC}"
     echo -e "${YELLOW}Update DB_PASSWORD in your .env!${NC}\n"
 }

@@ -20,7 +20,7 @@ app_create() {
     # Validate
     validate_username "$app_user"  || { error "Invalid username '${app_user}'"; exit 1; }
     validate_domain "$domain"      || { error "Invalid domain '${domain}'"; exit 1; }
-    validate_php_version "$php_ver" || { error "Invalid PHP version. Use: 8.1 8.2 8.3 8.4"; exit 1; }
+    validate_php_version "$php_ver" || { error "Invalid PHP version. Use: 8.4 8.5"; exit 1; }
     php_is_installed "$php_ver"    || { error "PHP $php_ver not installed. Run: cipi php install $php_ver"; exit 1; }
     app_exists "$app_user"         && { error "App '${app_user}' already exists"; exit 1; }
     id "$app_user" &>/dev/null     && { error "User '${app_user}' already exists"; exit 1; }
@@ -67,7 +67,7 @@ BASH
     # 4. MariaDB database
     step "Database..."
     local db_root; db_root=$(get_db_root_password)
-    mysql -u root -p"${db_root}" <<SQL
+    mariadb -u root -p"${db_root}" <<SQL
 CREATE DATABASE IF NOT EXISTS \`${app_user}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 CREATE USER IF NOT EXISTS '${app_user}'@'localhost' IDENTIFIED BY '${db_pass}';
 GRANT ALL PRIVILEGES ON \`${app_user}\`.* TO '${app_user}'@'localhost';
@@ -123,43 +123,12 @@ ENV
 
     # 7. Nginx vhost
     step "Nginx vhost..."
-    _create_nginx_vhost "$app_user" "$domain" "$php_ver"
+    _create_nginx_vhost "$app_user" "$domain" "$php_ver" ""
     ln -sf "/etc/nginx/sites-available/${app_user}" "/etc/nginx/sites-enabled/${app_user}"
     reload_nginx
     success "Nginx → ${domain}"
 
-    # 8. Supervisor default worker
-    step "Queue worker..."
-    echo "" > "/etc/supervisor/conf.d/${app_user}.conf"
-    _create_supervisor_worker "$app_user" "$php_ver" "default"
-    reload_supervisor
-    success "Worker (default queue)"
-
-    # 9. Crontab: scheduler + deploy trigger watcher
-    step "Crontab..."
-    cat <<CRON | crontab -u "$app_user" -
-# Laravel Scheduler
-* * * * * /usr/bin/php${php_ver} ${home}/current/artisan schedule:run >> /dev/null 2>&1
-# Cipi deploy trigger (written by cipi/agent webhook)
-* * * * * test -f ${home}/.deploy-trigger && rm -f ${home}/.deploy-trigger && cd ${home} && /usr/local/bin/dep deploy -f ${home}/.deployer/deploy.php >> ${home}/logs/deploy.log 2>&1
-CRON
-    success "Scheduler + deploy trigger"
-
-    # 10. Deployer config
-    step "Deployer..."
-    _create_deployer_config "$app_user" "$repository" "$branch" "$php_ver"
-    success "Deployer"
-
-    # 11. Sudoers (worker restart only)
-    step "Permissions..."
-    cat > "/etc/sudoers.d/cipi-${app_user}" <<SUDO
-${app_user} ALL=(root) NOPASSWD: /usr/local/bin/cipi-worker restart ${app_user}
-${app_user} ALL=(root) NOPASSWD: /usr/local/bin/cipi-worker status ${app_user}
-SUDO
-    chmod 440 "/etc/sudoers.d/cipi-${app_user}"
-    success "Permissions"
-
-    # 12. Save config
+    # 8. Save config early (so app is registered even if later steps fail)
     app_save "$app_user" "$(cat <<JSON
 {
     "user": "${app_user}",
@@ -175,6 +144,37 @@ SUDO
 JSON
 )"
     log_action "APP CREATED: $app_user domain=$domain php=$php_ver"
+
+    # 9. Supervisor default worker
+    step "Queue worker..."
+    echo "" > "/etc/supervisor/conf.d/${app_user}.conf"
+    _create_supervisor_worker "$app_user" "$php_ver" "default"
+    reload_supervisor
+    success "Worker (default queue)"
+
+    # 10. Crontab
+    step "Crontab..."
+    cat <<CRON | crontab -u "$app_user" -
+# Laravel Scheduler
+* * * * * /usr/bin/php${php_ver} ${home}/current/artisan schedule:run >> /dev/null 2>&1
+# Cipi deploy trigger (written by cipi/agent webhook)
+* * * * * test -f ${home}/.deploy-trigger && rm -f ${home}/.deploy-trigger && cd ${home} && /usr/local/bin/dep deploy -f ${home}/.deployer/deploy.php >> ${home}/logs/deploy.log 2>&1
+CRON
+    success "Scheduler + deploy trigger"
+
+    # 11. Deployer config
+    step "Deployer..."
+    _create_deployer_config "$app_user" "$repository" "$branch" "$php_ver"
+    success "Deployer"
+
+    # 12. Sudoers (worker restart only)
+    step "Permissions..."
+    cat > "/etc/sudoers.d/cipi-${app_user}" <<SUDO
+${app_user} ALL=(root) NOPASSWD: /usr/local/bin/cipi-worker restart ${app_user}
+${app_user} ALL=(root) NOPASSWD: /usr/local/bin/cipi-worker status ${app_user}
+SUDO
+    chmod 440 "/etc/sudoers.d/cipi-${app_user}"
+    success "Permissions"
 
     # Summary
     echo ""
@@ -305,7 +305,7 @@ app_delete() {
     step "Workers...";     supervisorctl stop "${app}-worker-*" 2>/dev/null||true; rm -f "/etc/supervisor/conf.d/${app}.conf"; reload_supervisor
     step "Nginx...";       rm -f "/etc/nginx/sites-enabled/${app}" "/etc/nginx/sites-available/${app}"; reload_nginx
     step "PHP-FPM...";     rm -f "/etc/php/${p}/fpm/pool.d/${app}.conf"; reload_php_fpm "$p" 2>/dev/null||true
-    step "Database...";    local dbr; dbr=$(get_db_root_password); mysql -u root -p"$dbr" -e "DROP DATABASE IF EXISTS \`${app}\`; DROP USER IF EXISTS '${app}'@'localhost'; FLUSH PRIVILEGES;" 2>/dev/null||true
+    step "Database...";    local dbr; dbr=$(get_db_root_password); mariadb -u root -p"$dbr" -e "DROP DATABASE IF EXISTS \`${app}\`; DROP USER IF EXISTS '${app}'@'localhost'; FLUSH PRIVILEGES;" 2>/dev/null||true
     step "Crontab...";     crontab -u "$app" -r 2>/dev/null||true
     step "Sudoers...";     rm -f "/etc/sudoers.d/cipi-${app}"
     step "SSL...";         certbot delete --cert-name "$d" --non-interactive 2>/dev/null||true
@@ -425,7 +425,12 @@ EOF
 _create_nginx_vhost() {
     local app="$1" domain="$2" v="$3"
     local names="$domain"
-    local aliases; aliases=$(jq -r --arg a "$app" '.[$a].aliases[]?//empty' "${CIPI_CONFIG}/apps.json" 2>/dev/null)
+    local aliases
+    if [[ $# -ge 4 ]]; then
+        aliases="${4:-}"
+    else
+        aliases=$(jq -r --arg a "$app" '.[$a].aliases[]?//empty' "${CIPI_CONFIG}/apps.json" 2>/dev/null || true)
+    fi
     [[ -n "$aliases" ]] && names="$domain $aliases"
     cat > "/etc/nginx/sites-available/${app}" <<EOF
 server {

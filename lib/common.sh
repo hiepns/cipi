@@ -31,7 +31,7 @@ validate_domain() {
 }
 
 validate_php_version() {
-    case "$1" in 8.1|8.2|8.3|8.4) return 0 ;; *) return 1 ;; esac
+    case "$1" in 8.4|8.5) return 0 ;; *) return 1 ;; esac
 }
 
 php_is_installed() { dpkg -l "php${1}-fpm" &>/dev/null 2>&1; }
@@ -49,8 +49,11 @@ app_set() {
 }
 
 app_save() {
+    [[ -f "${CIPI_CONFIG}/apps.json" ]] || echo "{}" > "${CIPI_CONFIG}/apps.json"
     local tmp; tmp=$(mktemp)
-    jq --arg a "$1" --argjson d "$2" '.[$a] = $d' "${CIPI_CONFIG}/apps.json" > "$tmp"
+    if ! jq --arg a "$1" --argjson d "$2" '.[$a] = $d' "${CIPI_CONFIG}/apps.json" > "$tmp" 2>/dev/null; then
+        error "Failed to save app config (invalid JSON?)"; rm -f "$tmp"; return 1
+    fi
     mv "$tmp" "${CIPI_CONFIG}/apps.json"; chmod 600 "${CIPI_CONFIG}/apps.json"
 }
 
@@ -93,9 +96,22 @@ parse_args() {
     done
 }
 
-reload_nginx()     { nginx -t &>/dev/null && systemctl reload nginx; }
-reload_php_fpm()   { systemctl restart "php${1}-fpm"; }
-reload_supervisor() { supervisorctl reread &>/dev/null; supervisorctl update &>/dev/null; }
+reload_nginx() {
+    if ! nginx -t 2>&1; then
+        error "nginx config test failed. Fix config and run: nginx -t"
+        return 1
+    fi
+    systemctl reload nginx || { error "systemctl reload nginx failed"; return 1; }
+}
+
+reload_php_fpm() {
+    systemctl restart "php${1}-fpm" || { error "Failed to restart php${1}-fpm"; return 1; }
+}
+
+reload_supervisor() {
+    supervisorctl reread 2>&1 || { error "supervisorctl reread failed"; return 1; }
+    supervisorctl update 2>&1 || warn "Supervisor update had issues (worker may start after first deploy)"
+}
 
 # Init config on source
 mkdir -p "${CIPI_CONFIG}" "${CIPI_LOG}"

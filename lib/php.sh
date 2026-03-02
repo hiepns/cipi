@@ -17,7 +17,7 @@ php_command() {
 
 _php_install() {
     local v="${1:-}"
-    [[ -z "$v" ]] && { error "Usage: cipi php install <8.1|8.2|8.3|8.4>"; exit 1; }
+    [[ -z "$v" ]] && { error "Usage: cipi php install <8.4|8.5>"; exit 1; }
     validate_php_version "$v" || { error "Invalid: $v"; exit 1; }
     php_is_installed "$v" && { info "PHP $v already installed"; return; }
     step "Adding PPA..."
@@ -34,7 +34,17 @@ max_execution_time = 300
 max_input_time = 300
 expose_php = Off
 EOF
-    [[ -f "/etc/php/${v}/fpm/pool.d/www.conf" ]] && mv "/etc/php/${v}/fpm/pool.d/www.conf" "/etc/php/${v}/fpm/pool.d/www.conf.disabled"
+    cat > "/etc/php/${v}/fpm/pool.d/www.conf" <<POOLEOF
+[www]
+user = www-data
+group = www-data
+listen = /run/php/php${v}-fpm.sock
+listen.owner = www-data
+listen.group = www-data
+pm = ondemand
+pm.max_children = 2
+pm.process_idle_timeout = 10s
+POOLEOF
     systemctl restart "php${v}-fpm"; systemctl enable "php${v}-fpm"
     log_action "PHP INSTALLED: $v"; success "PHP ${v} installed"
 }
@@ -55,7 +65,7 @@ _php_remove() {
 
 _php_list() {
     echo -e "\n${BOLD}PHP Versions${NC}"
-    for v in 8.1 8.2 8.3 8.4; do
+    for v in 8.4 8.5; do
         if php_is_installed "$v"; then
             local st="${RED}stopped" c="${RED}"
             systemctl is-active --quiet "php${v}-fpm" 2>/dev/null && st="running" && c="${GREEN}"
