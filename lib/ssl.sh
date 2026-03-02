@@ -15,19 +15,26 @@ ssl_command() {
 
 _ssl_install() {
     local app="${1:-}"; [[ -z "$app" ]] && { error "Usage: cipi ssl install <app>"; exit 1; }
-    app_exists "$app" || { error "Not found"; exit 1; }
+    app_exists "$app" || { error "App '$app' not found"; exit 1; }
     local d; d=$(app_get "$app" domain)
+    [[ -z "$d" ]] && { error "No domain for app '$app'"; exit 1; }
     local domains="-d ${d}"
-    jq -r --arg a "$app" '.[$a].aliases[]?//empty' "${CIPI_CONFIG}/apps.json" 2>/dev/null | while read -r a; do
+    local aliases
+    aliases=$(jq -r --arg a "$app" '.[$a].aliases[]?//empty' "${CIPI_CONFIG}/apps.json" 2>/dev/null || true)
+    while read -r a; do
         [[ -n "$a" ]] && domains+=" -d ${a}"
-    done
+    done <<< "${aliases:-}"
+    echo ""
     step "Installing SSL for ${d}..."
-    certbot --nginx $domains --non-interactive --agree-tos --register-unsafely-without-email --redirect 2>&1
-    if [[ $? -eq 0 ]]; then
-        sed -i "s|^APP_URL=http://|APP_URL=https://|" "/home/${app}/shared/.env" 2>/dev/null
-        log_action "SSL INSTALLED: $app"; success "SSL installed"
+    if certbot --nginx $domains --non-interactive --agree-tos --register-unsafely-without-email --redirect; then
+        sed -i "s|^APP_URL=http://|APP_URL=https://|" "/home/${app}/shared/.env" 2>/dev/null || true
+        log_action "SSL INSTALLED: $app"
+        echo ""
+        success "SSL installed for ${d}"
     else
-        error "Failed. Ensure DNS points to this server."
+        echo ""
+        error "SSL failed. Check: DNS points to this server, port 80 is open, domain is correct."
+        exit 1
     fi
 }
 
