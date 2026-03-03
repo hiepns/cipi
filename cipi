@@ -49,6 +49,13 @@ show_help() {
     echo -e "    ${CYAN}cipi version${NC}                        Cipi version"
     echo -e "    ${CYAN}cipi self-update [--check]${NC}          Update Cipi"
     echo ""
+    echo -e "  ${BOLD}${CYAN}SERVICES${NC}"
+    echo -e "    ${CYAN}cipi service list [service]${NC}         Services status"
+    echo -e "    ${CYAN}cipi service restart [service|all]${NC}  Restart service(s)"
+    echo -e "    ${CYAN}cipi service start <service>${NC}        Start a service"
+    echo -e "    ${CYAN}cipi service stop <service>${NC}         Stop a service"
+    echo -e "    ${DIM}  services: nginx mariadb supervisor fail2ban php<ver>-fpm${NC}"
+    echo ""
     echo -e "  ${BOLD}${CYAN}APPS${NC}"
     echo -e "    ${CYAN}cipi app create${NC}                     Create Laravel app (interactive)"
     echo -e "    ${CYAN}cipi app list${NC}                       List apps"
@@ -158,6 +165,7 @@ main() {
         firewall)   require_root; source "${CIPI_LIB}/firewall.sh";    firewall_command "$@" ;;
         backup)     require_root; source "${CIPI_LIB}/backup.sh";      backup_command "$@" ;;
         self-update) require_root; source "${CIPI_LIB}/self-update.sh"; selfupdate_command "$@" ;;
+        service)    require_root; source "${CIPI_LIB}/service.sh";    service_command "$@" ;;
         *) error "Unknown command: $cmd"; echo "Run 'cipi help'"; exit 1 ;;
     esac
 }

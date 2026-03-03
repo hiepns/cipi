@@ -427,6 +427,38 @@ cipi firewall list                            # show all rules
 
 ---
 
+### Service management
+
+Check and control the system services that power Cipi directly from the CLI:
+
+```bash
+# Status of all services
+cipi service list
+
+# Status of a single service
+cipi service list nginx
+
+# Restart all services at once
+cipi service restart
+
+# Restart a specific service (nginx uses graceful reload, zero downtime)
+cipi service restart nginx
+cipi service restart mariadb
+cipi service restart php8.4-fpm
+
+# Restart all PHP-FPM versions in one shot
+cipi service restart php
+
+# Start / stop a service
+cipi service start fail2ban
+cipi service stop supervisor    # asks for confirmation
+```
+
+Supported services: `nginx`, `mariadb`, `supervisor`, `fail2ban`, `php<ver>-fpm`.  
+The keyword `all` (or omitting the name) targets every service at once.
+
+---
+
 ### Artisan & Tinker
 
 Run Artisan commands and Tinker as the app user (correct permissions, correct PHP version):
@@ -590,6 +622,20 @@ Credentials (database passwords, webhook tokens) are generated using `openssl ra
 | `cipi version`             | Show Cipi version                                   |
 | `cipi self-update`         | Update Cipi                                         |
 | `cipi self-update --check` | Check for updates without installing                |
+
+### Services
+
+| Command                              | Description                                   |
+| ------------------------------------ | --------------------------------------------- |
+| `cipi service list`                  | Status of all services with uptime info       |
+| `cipi service list <service>`        | Status of a specific service                  |
+| `cipi service restart`               | Restart all services                          |
+| `cipi service restart <service\|all>` | Restart one or all services                   |
+| `cipi service restart php`           | Restart all installed PHP-FPM versions        |
+| `cipi service start <service>`       | Start a stopped service                       |
+| `cipi service stop <service>`        | Stop a running service (with confirmation)    |
+
+Services: `nginx` `mariadb` `supervisor` `fail2ban` `php<ver>-fpm`
 
 ### Applications
 

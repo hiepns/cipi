@@ -1,0 +1,133 @@
+#!/bin/bash
+#############################################
+# Cipi — Service Management
+#############################################
+
+readonly CIPI_SERVICES=(nginx mariadb supervisor fail2ban)
+
+_svc_label() {
+    local svc="$1"
+    printf "%-20s" "$svc"
+}
+
+_svc_status_line() {
+    local svc="$1"
+    if systemctl is-active --quiet "$svc" 2>/dev/null; then
+        local since; since=$(systemctl show "$svc" --property=ActiveEnterTimestamp --value 2>/dev/null | sed 's/ [A-Z]*$//')
+        printf "  $(_svc_label "$svc") ${GREEN}● running${NC}"
+        [[ -n "$since" ]] && printf "  ${DIM}since %s${NC}" "$since"
+        echo
+    elif systemctl list-unit-files --quiet "${svc}.service" &>/dev/null; then
+        printf "  $(_svc_label "$svc") ${RED}● stopped${NC}\n"
+    else
+        printf "  $(_svc_label "$svc") ${DIM}● not installed${NC}\n"
+    fi
+}
+
+_resolve_services() {
+    local name="$1"
+    case "$name" in
+        all|"")
+            local list=("${CIPI_SERVICES[@]}")
+            for v in 7.4 8.0 8.1 8.2 8.3 8.4 8.5; do
+                systemctl list-unit-files --quiet "php${v}-fpm.service" &>/dev/null \
+                    && list+=("php${v}-fpm")
+            done
+            echo "${list[@]}"
+            ;;
+        php)
+            for v in 7.4 8.0 8.1 8.2 8.3 8.4 8.5; do
+                systemctl list-unit-files --quiet "php${v}-fpm.service" &>/dev/null \
+                    && echo -n "php${v}-fpm "
+            done
+            ;;
+        nginx|mariadb|supervisor|fail2ban)
+            echo "$name"
+            ;;
+        php*-fpm)
+            echo "$name"
+            ;;
+        *)
+            error "Unknown service: ${name}"
+            echo -e "  Valid names: ${CYAN}nginx mariadb supervisor fail2ban php<ver>-fpm all${NC}" >&2
+            return 1
+            ;;
+    esac
+}
+
+service_status() {
+    local target="${1:-all}"
+    local services; services=$(_resolve_services "$target") || return 1
+
+    echo -e "\n${BOLD}Services${NC}"
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+    for svc in $services; do
+        _svc_status_line "$svc"
+    done
+    echo
+}
+
+service_restart() {
+    local target="${1:-all}"
+    local services; services=$(_resolve_services "$target") || return 1
+
+    for svc in $services; do
+        if ! systemctl list-unit-files --quiet "${svc}.service" &>/dev/null; then
+            warn "Service ${svc} is not installed — skipping"
+            continue
+        fi
+        step "Restarting ${svc}..."
+        if [[ "$svc" == "nginx" ]]; then
+            reload_nginx && success "${svc} reloaded" || error "Failed to reload ${svc}"
+        else
+            systemctl restart "$svc" 2>/dev/null \
+                && success "${svc} restarted" \
+                || error "Failed to restart ${svc}"
+        fi
+        log_action "service restart ${svc}"
+    done
+}
+
+service_start() {
+    local svc="${1:-}"
+    [[ -z "$svc" ]] && { error "Usage: cipi service start <service>"; return 1; }
+    _resolve_services "$svc" > /dev/null || return 1
+
+    step "Starting ${svc}..."
+    systemctl start "$svc" 2>/dev/null \
+        && success "${svc} started" \
+        || error "Failed to start ${svc}"
+    log_action "service start ${svc}"
+}
+
+service_stop() {
+    local svc="${1:-}"
+    [[ -z "$svc" ]] && { error "Usage: cipi service stop <service>"; return 1; }
+    _resolve_services "$svc" > /dev/null || return 1
+
+    [[ "$svc" == "nginx" ]] && warn "Stopping nginx will make all sites unreachable"
+    confirm "Stop ${svc}?" || { info "Aborted"; return 0; }
+
+    step "Stopping ${svc}..."
+    systemctl stop "$svc" 2>/dev/null \
+        && success "${svc} stopped" \
+        || error "Failed to stop ${svc}"
+    log_action "service stop ${svc}"
+}
+
+service_command() {
+    local subcmd="${1:-list}"; shift || true
+
+    case "$subcmd" in
+        list|status)  service_status  "${1:-all}" ;;
+        restart)      service_restart "${1:-all}" ;;
+        start)        service_start   "${1:-}" ;;
+        stop)         service_stop    "${1:-}" ;;
+        *)
+            error "Unknown service subcommand: ${subcmd}"
+            echo -e "  Usage: ${CYAN}cipi service <list|restart|start|stop> [service]${NC}"
+            exit 1
+            ;;
+    esac
+}
