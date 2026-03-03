@@ -64,7 +64,7 @@ BASH
     echo "$deploy_key" >> "${home}/.ssh/authorized_keys"
     chown "${app_user}:${app_user}" "${home}/.ssh/authorized_keys"
     chmod 600 "${home}/.ssh/authorized_keys"
-    ssh-keyscan -H github.com gitlab.com 2>/dev/null >> "${home}/.ssh/known_hosts"
+    ssh-keyscan -H localhost 127.0.0.1 github.com gitlab.com 2>/dev/null >> "${home}/.ssh/known_hosts"
     chown "${app_user}:${app_user}" "${home}/.ssh/known_hosts"
     chmod 600 "${home}/.ssh/known_hosts"
     success "Deploy key"
@@ -494,7 +494,8 @@ add('writable_dirs', [
 
 host('localhost')
     ->set('remote_user', '${an}')
-    ->set('deploy_path', '${dh}');
+    ->set('deploy_path', '${dh}')
+    ->set('ssh_arguments', ['-o StrictHostKeyChecking=accept-new', '-i ${dh}/.ssh/id_ed25519']);
 
 after('deploy:vendors', 'artisan:storage:link');
 after('deploy:vendors', 'artisan:migrate');

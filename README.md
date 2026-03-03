@@ -269,6 +269,7 @@ cipi deploy myapp              # deploy latest
 cipi deploy myapp --rollback   # instant rollback to previous release
 cipi deploy myapp --releases   # list all releases with dates
 cipi deploy myapp --key        # show the SSH deploy key
+cipi deploy myapp --unlock     # remove a stuck deploy lock
 ```
 
 ---
@@ -671,6 +672,7 @@ Services: `nginx` `mariadb` `supervisor` `fail2ban` `php<ver>-fpm`
 | `cipi deploy <app> --releases` | List releases                |
 | `cipi deploy <app> --key`      | Show SSH deploy key          |
 | `cipi deploy <app> --webhook`  | Show webhook URL and token   |
+| `cipi deploy <app> --unlock`   | Remove a stuck deploy lock   |
 
 ### Workers
 

@@ -50,11 +50,13 @@ _deploy_run() {
 
 _deploy_unlock() {
     local app="$1" home="/home/${app}"
-    local df="${home}/.deployer/deploy.php"
-    [[ ! -f "$df" ]] && { error "Deployer config not found for '${app}'"; exit 1; }
-    warn "Unlocking deploy for '${app}'..."
-    sudo -u "$app" bash -c "/usr/local/bin/dep deploy:unlock -f ${df} 2>&1"
-    [[ $? -eq 0 ]] && success "Deploy unlocked — run: cipi deploy ${app}" || error "Unlock failed"
+    local lockfile="${home}/.dep/deploy.lock"
+    if [[ ! -f "$lockfile" ]]; then
+        info "No deploy lock found for '${app}'"
+        return 0
+    fi
+    rm -f "$lockfile"
+    success "Deploy unlocked — run: cipi deploy ${app}"
     log_action "DEPLOY UNLOCK: $app"
 }
 
