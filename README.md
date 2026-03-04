@@ -19,7 +19,7 @@ The open-source server control panel exclusively for Laravel.
 ## Install
 
 ```bash
-wget -O - https://raw.githubusercontent.com/andreapollastri/cipi/refs/heads/latest/install.sh | bash
+wget -O - https://cipi.sh/setup.sh | bash
 ```
 
 ## Quick start
