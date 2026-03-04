@@ -32,16 +32,7 @@ cipi ssl install <app>
 
 ## Git providers
 
-Cipi works with any Git provider that supports SSH deploy keys — no vendor lock-in.
-
-| Provider | Support |
-|---|---|
-| GitHub | ✓ |
-| GitLab | ✓ |
-| Gitea | ✓ |
-| Forgejo | ✓ |
-| Bitbucket | ✓ |
-| Any self-hosted / custom Git server | ✓ |
+Cipi is ready to Work with GitHub and GitLab but it supports any other Git provider that supports SSH deploy keys — no vendor lock-in. Follow these steps to add your custom Git provider:
 
 ```bash
 # show the deploy key and add it to your Git provider
