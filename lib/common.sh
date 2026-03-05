@@ -156,3 +156,4 @@ for f in apps.json databases.json; do
         echo "{}" > "${CIPI_CONFIG}/$f" && chmod 600 "${CIPI_CONFIG}/$f"
     fi
 done
+ensure_apps_json_api_access
