@@ -49,6 +49,11 @@ api_setup() {
     reload_nginx
     success "Nginx → ${domain}"
 
+    # Queue worker (systemd)
+    step "Queue worker..."
+    _api_setup_queue_worker
+    success "Queue worker (cipi-queue)"
+
     log_action "API CONFIGURED: $domain"
     echo ""
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
@@ -68,30 +73,91 @@ api_setup() {
 _api_ensure_laravel_app() {
     if [[ ! -f "${CIPI_API_ROOT}/artisan" ]]; then
         step "Installing Laravel API app..."
-        local overlay_dir="/opt/cipi/api-overlay"
-        [[ -d "${CIPI_LIB}/../api" ]] && overlay_dir="${CIPI_LIB}/../api"
         rm -rf /tmp/cipi-api-build 2>/dev/null
+
+        # 1. Create fresh Laravel project
         (cd /tmp && composer create-project laravel/laravel cipi-api-build --no-interaction --prefer-dist 2>/dev/null) || {
             error "Failed to create Laravel app. Ensure composer is available."
             exit 1
         }
-        (cd /tmp/cipi-api-build && composer require laravel/sanctum laravel/mcp --no-interaction 2>/dev/null) || true
-        (cd /tmp/cipi-api-build && php artisan vendor:publish --tag=ai-routes --force 2>/dev/null) || true
-        (cd /tmp/cipi-api-build && php artisan vendor:publish --provider="Laravel\Sanctum\SanctumServiceProvider" --force 2>/dev/null) || true
-        if [[ -d "${overlay_dir}/overlay" ]]; then
-            cp -r "${overlay_dir}/overlay/"* /tmp/cipi-api-build/
+
+        # 2. Add path repository for cipi-api package (local or installed copy)
+        local pkg_dir="/opt/cipi/cipi-api"
+        [[ -d "${CIPI_LIB}/../cipi-api" ]] && pkg_dir="${CIPI_LIB}/../cipi-api"
+        if [[ -d "$pkg_dir" ]]; then
+            (cd /tmp/cipi-api-build && composer config repositories.cipi-api path "$pkg_dir" 2>/dev/null) || true
+            (cd /tmp/cipi-api-build && composer require andreapollastri/cipi-api:@dev --no-interaction 2>/dev/null) || true
+        else
+            (cd /tmp/cipi-api-build && composer require andreapollastri/cipi-api --no-interaction 2>/dev/null) || true
         fi
-        (cd /tmp/cipi-api-build && composer dump-autoload 2>/dev/null) || true
+
+        # 3. Configure .env
+        sed -i "s|^QUEUE_CONNECTION=.*|QUEUE_CONNECTION=database|" /tmp/cipi-api-build/.env
+
+        # 4. Publish assets and run setup
+        (cd /tmp/cipi-api-build && php artisan vendor:publish --tag=cipi-assets --force 2>/dev/null) || true
         (cd /tmp/cipi-api-build && php artisan key:generate --force 2>/dev/null) || true
         (cd /tmp/cipi-api-build && php artisan migrate --force 2>/dev/null) || true
-        (cd /tmp/cipi-api-build && php artisan db:seed --class=ApiUserSeeder --force 2>/dev/null) || true
+        (cd /tmp/cipi-api-build && php artisan cipi:seed-user 2>/dev/null) || true
+
+        # 5. Ensure User model has HasApiTokens trait
+        _api_patch_user_model /tmp/cipi-api-build
+
+        # 6. Move to final location
         rm -rf "${CIPI_API_ROOT}" 2>/dev/null
         mv /tmp/cipi-api-build "${CIPI_API_ROOT}"
         chown -R www-data:www-data "${CIPI_API_ROOT}"
-        success "Laravel API app"
+        success "Laravel API app + cipi-api package"
     else
-        step "Laravel API app already at ${CIPI_API_ROOT}"
+        step "Updating cipi-api package..."
+        _api_update_package
     fi
+}
+
+_api_update_package() {
+    local pkg_dir="/opt/cipi/cipi-api"
+    [[ -d "${CIPI_LIB}/../cipi-api" ]] && pkg_dir="${CIPI_LIB}/../cipi-api"
+    if [[ -d "$pkg_dir" ]]; then
+        (cd "${CIPI_API_ROOT}" && composer config repositories.cipi-api path "$pkg_dir" 2>/dev/null) || true
+    fi
+    (cd "${CIPI_API_ROOT}" && composer update andreapollastri/cipi-api --no-interaction 2>/dev/null) || true
+    (cd "${CIPI_API_ROOT}" && php artisan vendor:publish --tag=cipi-assets --force 2>/dev/null) || true
+    (cd "${CIPI_API_ROOT}" && sudo -u www-data php artisan migrate --force 2>/dev/null) || true
+    success "cipi-api package updated"
+}
+
+_api_patch_user_model() {
+    local base="$1"
+    local user_model="${base}/app/Models/User.php"
+    [[ ! -f "$user_model" ]] && return
+    if ! grep -q 'HasApiTokens' "$user_model"; then
+        sed -i '/^use Illuminate\\Foundation\\Auth\\User as Authenticatable;/a use Laravel\\Sanctum\\HasApiTokens;' "$user_model"
+        sed -i 's/use HasFactory, Notifiable;/use HasApiTokens, HasFactory, Notifiable;/' "$user_model"
+    fi
+}
+
+_api_setup_queue_worker() {
+    cat > /etc/systemd/system/cipi-queue.service <<SYSTEMD
+[Unit]
+Description=Cipi API Queue Worker
+After=network.target
+
+[Service]
+User=www-data
+Group=www-data
+WorkingDirectory=${CIPI_API_ROOT}
+ExecStart=/usr/bin/php artisan queue:work database --sleep=3 --tries=1 --timeout=600 --queue=default
+Restart=always
+RestartSec=5
+StandardOutput=append:/var/log/cipi-queue.log
+StandardError=append:/var/log/cipi-queue.log
+
+[Install]
+WantedBy=multi-user.target
+SYSTEMD
+    systemctl daemon-reload
+    systemctl enable cipi-queue 2>/dev/null
+    systemctl restart cipi-queue 2>/dev/null
 }
 
 _api_create_fpm_pool() {
@@ -152,6 +218,189 @@ server {
     error_page 404 /index.php;
 }
 EOF
+}
+
+# ── API UPDATE (cipi api update) ───────────────────────────────
+
+api_update() {
+    [[ ! -f "${CIPI_API_CONFIG}" ]] && { error "API not configured. Run: cipi api <domain>"; exit 1; }
+    [[ ! -f "${CIPI_API_ROOT}/artisan" ]] && { error "Laravel API app not found."; exit 1; }
+
+    echo ""; info "Updating API (composer update)..."; echo ""
+
+    # Stop queue worker during update
+    systemctl stop cipi-queue 2>/dev/null || true
+
+    # Update local package reference
+    local pkg_dir="/opt/cipi/cipi-api"
+    [[ -d "${CIPI_LIB}/../cipi-api" ]] && pkg_dir="${CIPI_LIB}/../cipi-api"
+    if [[ -d "$pkg_dir" ]]; then
+        (cd "${CIPI_API_ROOT}" && composer config repositories.cipi-api path "$pkg_dir" 2>/dev/null) || true
+    fi
+
+    # Update all packages (Laravel framework + cipi-api + dependencies)
+    step "Composer update..."
+    (cd "${CIPI_API_ROOT}" && composer update --no-interaction 2>/dev/null) || {
+        error "Composer update failed. Try: cipi api upgrade"
+        systemctl start cipi-queue 2>/dev/null || true
+        exit 1
+    }
+    success "Packages updated"
+
+    # Re-publish assets and run migrations
+    step "Assets & migrations..."
+    (cd "${CIPI_API_ROOT}" && php artisan vendor:publish --tag=cipi-assets --force 2>/dev/null) || true
+    (cd "${CIPI_API_ROOT}" && sudo -u www-data php artisan migrate --force 2>/dev/null) || true
+    success "Assets published, migrations applied"
+
+    # Restart services
+    systemctl restart cipi-queue 2>/dev/null || true
+    reload_php_fpm "8.4"
+
+    # Show versions
+    _api_show_versions
+
+    log_action "API UPDATED"
+    echo ""; success "API updated successfully"; echo ""
+}
+
+# ── API UPGRADE (cipi api upgrade) ────────────────────────────
+
+api_upgrade() {
+    [[ ! -f "${CIPI_API_CONFIG}" ]] && { error "API not configured. Run: cipi api <domain>"; exit 1; }
+    [[ ! -f "${CIPI_API_ROOT}/artisan" ]] && { error "Laravel API app not found."; exit 1; }
+
+    local domain; domain=$(jq -r '.domain' "${CIPI_API_CONFIG}")
+
+    echo ""
+    echo -e "${YELLOW}${BOLD}Full rebuild: fresh Laravel + cipi-api package${NC}"
+    echo -e "${YELLOW}Preserves: .env, database (SQLite), SSL, tokens${NC}"
+    echo ""
+
+    # Stop queue worker
+    systemctl stop cipi-queue 2>/dev/null || true
+
+    # 1. Backup critical data
+    step "Backing up..."
+    local backup_dir="/tmp/cipi-api-backup-$(date +%s)"
+    mkdir -p "$backup_dir"
+    [[ -f "${CIPI_API_ROOT}/.env" ]] && cp "${CIPI_API_ROOT}/.env" "${backup_dir}/.env"
+    [[ -f "${CIPI_API_ROOT}/database/database.sqlite" ]] && cp "${CIPI_API_ROOT}/database/database.sqlite" "${backup_dir}/database.sqlite"
+    success "Backup → $backup_dir"
+
+    # 2. Build new Laravel project
+    step "Creating fresh Laravel project..."
+    rm -rf /tmp/cipi-api-build 2>/dev/null
+    (cd /tmp && composer create-project laravel/laravel cipi-api-build --no-interaction --prefer-dist 2>/dev/null) || {
+        error "Failed to create Laravel app."
+        systemctl start cipi-queue 2>/dev/null || true
+        exit 1
+    }
+    success "Fresh Laravel installed"
+
+    # 3. Install cipi-api package
+    step "Installing cipi-api package..."
+    local pkg_dir="/opt/cipi/cipi-api"
+    [[ -d "${CIPI_LIB}/../cipi-api" ]] && pkg_dir="${CIPI_LIB}/../cipi-api"
+    if [[ -d "$pkg_dir" ]]; then
+        (cd /tmp/cipi-api-build && composer config repositories.cipi-api path "$pkg_dir" 2>/dev/null) || true
+        (cd /tmp/cipi-api-build && composer require andreapollastri/cipi-api:@dev --no-interaction 2>/dev/null) || true
+    else
+        (cd /tmp/cipi-api-build && composer require andreapollastri/cipi-api --no-interaction 2>/dev/null) || true
+    fi
+    success "cipi-api package installed"
+
+    # 4. Restore .env (keeps APP_KEY, DB credentials, QUEUE_CONNECTION)
+    step "Restoring .env..."
+    if [[ -f "${backup_dir}/.env" ]]; then
+        cp "${backup_dir}/.env" /tmp/cipi-api-build/.env
+    else
+        sed -i "s|^QUEUE_CONNECTION=.*|QUEUE_CONNECTION=database|" /tmp/cipi-api-build/.env
+        (cd /tmp/cipi-api-build && php artisan key:generate --force 2>/dev/null) || true
+    fi
+    success ".env restored"
+
+    # 5. Restore database
+    step "Restoring database..."
+    if [[ -f "${backup_dir}/database.sqlite" ]]; then
+        cp "${backup_dir}/database.sqlite" /tmp/cipi-api-build/database/database.sqlite
+    fi
+    success "Database restored"
+
+    # 6. Patch User model, publish assets, run new migrations
+    _api_patch_user_model /tmp/cipi-api-build
+    (cd /tmp/cipi-api-build && php artisan vendor:publish --tag=cipi-assets --force 2>/dev/null) || true
+    (cd /tmp/cipi-api-build && php artisan migrate --force 2>/dev/null) || true
+    (cd /tmp/cipi-api-build && php artisan cipi:seed-user 2>/dev/null) || true
+    success "Migrations & assets"
+
+    # 7. Swap in the new build
+    step "Swapping..."
+    rm -rf "${CIPI_API_ROOT}.old" 2>/dev/null
+    mv "${CIPI_API_ROOT}" "${CIPI_API_ROOT}.old" 2>/dev/null || true
+    mv /tmp/cipi-api-build "${CIPI_API_ROOT}"
+    chown -R www-data:www-data "${CIPI_API_ROOT}"
+    success "App replaced"
+
+    # 8. Restart services
+    systemctl restart cipi-queue 2>/dev/null || true
+    reload_php_fpm "8.4"
+
+    # 9. Show result
+    _api_show_versions
+
+    log_action "API UPGRADED (full rebuild)"
+    echo ""
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo -e "  ${GREEN}${BOLD}Upgrade complete${NC}"
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo -e "  Old version kept at: ${CYAN}${CIPI_API_ROOT}.old${NC}"
+    echo -e "  Backup:              ${CYAN}${backup_dir}${NC}"
+    echo ""
+    echo -e "  Remove after testing:  ${DIM}rm -rf ${CIPI_API_ROOT}.old${NC}"
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo ""
+}
+
+# ── API STATUS (cipi api status) ──────────────────────────────
+
+api_status() {
+    [[ ! -f "${CIPI_API_CONFIG}" ]] && { error "API not configured. Run: cipi api <domain>"; exit 1; }
+    [[ ! -f "${CIPI_API_ROOT}/artisan" ]] && { error "Laravel API app not found."; exit 1; }
+
+    local domain; domain=$(jq -r '.domain' "${CIPI_API_CONFIG}" 2>/dev/null)
+
+    echo ""
+    echo -e "${BOLD}Cipi API Status${NC}"
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo -e "  Domain:     ${CYAN}https://${domain}${NC}"
+
+    _api_show_versions
+
+    # Queue worker status
+    local queue_status
+    if systemctl is-active cipi-queue &>/dev/null; then
+        queue_status="${GREEN}running${NC}"
+    else
+        queue_status="${RED}stopped${NC}"
+    fi
+    echo -e "  Queue:      ${queue_status}"
+
+    # Pending jobs
+    local pending
+    pending=$(cd "${CIPI_API_ROOT}" && sudo -u www-data php artisan tinker --execute="echo \CipiApi\Models\CipiJob::whereIn('status',['pending','running'])->count();" 2>/dev/null || echo "?")
+    echo -e "  Jobs:       ${CYAN}${pending} pending${NC}"
+
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo ""
+}
+
+_api_show_versions() {
+    local laravel_ver cipi_api_ver
+    laravel_ver=$(cd "${CIPI_API_ROOT}" && php artisan --version 2>/dev/null | grep -oP '[\d.]+' || echo "unknown")
+    cipi_api_ver=$(cd "${CIPI_API_ROOT}" && composer show andreapollastri/cipi-api 2>/dev/null | grep -oP 'versions\s*:\s*\K.*' || echo "dev")
+    echo -e "  Laravel:    ${CYAN}${laravel_ver}${NC}"
+    echo -e "  cipi-api:   ${CYAN}${cipi_api_ver}${NC}"
 }
 
 # ── API SSL (cipi api ssl) ─────────────────────────────────────
@@ -272,14 +521,17 @@ api_token_revoke() {
 api_command() {
     local sub="${1:-}"; shift || true
     case "$sub" in
-        "")     error "Usage: cipi api <domain>"; exit 1 ;;
-        ssl)    api_ssl ;;
-        token)  _api_token_command "$@" ;;
+        "")      error "Usage: cipi api <domain>"; exit 1 ;;
+        ssl)     api_ssl ;;
+        update)  api_update ;;
+        upgrade) api_upgrade ;;
+        status)  api_status ;;
+        token)   _api_token_command "$@" ;;
         *)
             if validate_domain "$sub" 2>/dev/null; then
                 api_setup "$sub"
             else
-                error "Unknown: $sub"; echo "Use: <domain> | ssl | token list|create|revoke"; exit 1
+                error "Unknown: $sub"; echo "Use: <domain> | ssl | update | upgrade | status | token list|create|revoke"; exit 1
             fi ;;
     esac
 }

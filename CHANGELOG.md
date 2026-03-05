@@ -11,14 +11,24 @@ All notable changes to Cipi are documented in this file.
 - **Global API**: `cipi api <domain>` — configure API at root (e.g. api.miohosting.it), no aliases
 - **API SSL**: `cipi api ssl` — install Let's Encrypt certificate for API domain
 - **API tokens**: `cipi api token list|create|revoke` — manage Sanctum tokens (abilities: apps-view, apps-create, apps-edit, apps-delete, ssl-manage, aliases-view, aliases-create, aliases-delete, mcp-access)
-- **REST API** (Bearer token): `GET/POST/PUT/DELETE /api/apps`, `GET/POST/DELETE /api/apps/{name}/aliases`, `POST /api/ssl/{name}`
-- **Swagger/OpenAPI docs** at `/docs` — interactive API documentation via Swagger UI
-- **MCP server** at `/mcp` — requires `mcp-access` ability, tools for app/alias/SSL management
+- **REST API** (Bearer token): `GET/POST/PUT/DELETE /api/apps`, `GET/POST/DELETE /api/apps/{name}/aliases`, `POST /api/ssl/{name}`, `GET /api/jobs/{id}`
+- **Async job system**: all write operations (create, edit, delete, SSL, alias add/remove) dispatch background jobs via Laravel queue, returning `202 Accepted` with a `job_id` for polling; GET operations remain synchronous
+- **Sync validation**: domain uniqueness, app existence, PHP version, username format and domain format validated synchronously before job dispatch (409/404/422 returned immediately)
+- **Swagger/OpenAPI docs** at `/docs` — interactive API documentation via Swagger UI (spec v2.0.0)
+- **MCP server** at `/mcp` — requires `mcp-access` ability, tools for app/alias/SSL management (async dispatch with job_id)
 - **Dedicated PHP-FPM pool** `cipi-api` for the API (isolated from app pools, up to 10 workers)
+- **Queue worker** `cipi-queue` systemd service for processing background jobs (auto-restart, 600s timeout)
+- **`andreapollastri/cipi-api` Composer package**: all API logic (controllers, services, models, MCP tools, migrations, views, routes) is now a standalone Laravel package, publishable on Packagist — install via `cipi api <domain>` or `composer require andreapollastri/cipi-api`
+- **Welcome page** `welcome.blade.php` — dark/light theme landing page served at `/`
+- **`cipi api update`** — soft update: `composer update` on all packages (Laravel minor/patch + cipi-api), re-publishes assets and runs migrations
+- **`cipi api upgrade`** — full rebuild: fresh `composer create-project laravel/laravel` + `composer require cipi-api`, preserves `.env`, database, SSL certificates and tokens; keeps old version at `/opt/cipi/api.old` for rollback
+- **`cipi api status`** — shows current Laravel version, cipi-api version, queue worker status and pending jobs
 
 ### Changed
 
 - `cipi app delete <app> --force` — skip confirmation for non-interactive use
+- API read endpoints (GET /apps, GET /apps/{name}, GET /aliases) now read directly from `apps.json` instead of invoking CLI
+- API install uses `composer create-project laravel/laravel` + `composer require andreapollastri/cipi-api` instead of overlay copy — easier upgrades to future Laravel versions
 
 ---
 

@@ -25,7 +25,7 @@ selfupdate_command() {
     cp "${tmp}/cipi" /usr/local/bin/cipi; chmod 700 /usr/local/bin/cipi
     cp "${tmp}"/lib/*.sh /opt/cipi/lib/; chmod 700 /opt/cipi/lib/*.sh
     [[ -f "${tmp}/lib/cipi-worker" ]] && cp "${tmp}/lib/cipi-worker" /usr/local/bin/cipi-worker && chmod 700 /usr/local/bin/cipi-worker
-    [[ -d "${tmp}/api" ]] && rm -rf /opt/cipi/api-overlay && cp -a "${tmp}/api" /opt/cipi/api-overlay
+    [[ -d "${tmp}/cipi-api" ]] && rm -rf /opt/cipi/cipi-api && cp -a "${tmp}/cipi-api" /opt/cipi/cipi-api
     chown -R root:root /usr/local/bin/cipi /opt/cipi
 
     # Run migrations
@@ -36,6 +36,19 @@ selfupdate_command() {
                 step "Migration ${mv}..."; bash "$m" 2>&1
             fi
         done
+    fi
+
+    # Auto-update cipi-api package in installed API app
+    if [[ -f "${CIPI_API_ROOT:-/opt/cipi/api}/artisan" ]] && [[ -d /opt/cipi/cipi-api ]]; then
+        step "Updating cipi-api in Laravel app..."
+        local api_root="${CIPI_API_ROOT:-/opt/cipi/api}"
+        (cd "$api_root" && composer config repositories.cipi-api path /opt/cipi/cipi-api 2>/dev/null) || true
+        (cd "$api_root" && composer update andreapollastri/cipi-api --no-interaction 2>/dev/null) || true
+        (cd "$api_root" && php artisan vendor:publish --tag=cipi-assets --force 2>/dev/null) || true
+        (cd "$api_root" && sudo -u www-data php artisan migrate --force 2>/dev/null) || true
+        chown -R www-data:www-data "$api_root"
+        systemctl restart cipi-queue 2>/dev/null || true
+        success "cipi-api package updated in Laravel app"
     fi
 
     echo "$nv" > "${CIPI_CONFIG}/version"

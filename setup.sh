@@ -572,9 +572,10 @@ install_cipi() {
     cp cipi-install/lib/*.sh /opt/cipi/lib/
     chmod 700 /opt/cipi/lib/*.sh
 
-    # API overlay (for cipi api)
-    if [ -d "cipi-install/api" ]; then
-        cp -a cipi-install/api /opt/cipi/api-overlay
+    # Cipi API package (for cipi api)
+    if [ -d "cipi-install/cipi-api" ]; then
+        rm -rf /opt/cipi/cipi-api 2>/dev/null
+        cp -a cipi-install/cipi-api /opt/cipi/cipi-api
     fi
 
     # Worker helper
