@@ -1,0 +1,463 @@
+{
+    "openapi": "3.0.3",
+    "info": {
+        "title": "Cipi API",
+        "description": "REST API for Cipi Server Control Panel. Manage Laravel apps, domain aliases, and SSL certificates.\n\n**Authentication:** All endpoints require a Bearer token via the `Authorization` header.\nTokens are managed with `cipi api token create|list|revoke`.\n\n**MCP Server:** An MCP (Model Context Protocol) server is available at `/mcp` with the same authentication.",
+        "version": "1.0.0",
+        "contact": {
+            "name": "Cipi",
+            "url": "https://cipi.sh"
+        },
+        "license": {
+            "name": "MIT"
+        }
+    },
+    "servers": [
+        {
+            "url": "/api",
+            "description": "API"
+        }
+    ],
+    "security": [
+        {
+            "BearerAuth": []
+        }
+    ],
+    "paths": {
+        "/apps": {
+            "get": {
+                "tags": ["Apps"],
+                "summary": "List apps",
+                "description": "List all apps on the server. Requires `apps-view` ability.",
+                "operationId": "appList",
+                "responses": {
+                    "200": {
+                        "description": "App list",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/AppListResponse"
+                                }
+                            }
+                        }
+                    },
+                    "401": { "$ref": "#/components/responses/Unauthorized" },
+                    "403": { "$ref": "#/components/responses/Forbidden" }
+                }
+            },
+            "post": {
+                "tags": ["Apps"],
+                "summary": "Create app",
+                "description": "Create a new Laravel app. Requires `apps-create` ability.",
+                "operationId": "appCreate",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/AppCreateRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "App created",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/CliResponse"
+                                }
+                            }
+                        }
+                    },
+                    "400": { "$ref": "#/components/responses/BadRequest" },
+                    "401": { "$ref": "#/components/responses/Unauthorized" },
+                    "403": { "$ref": "#/components/responses/Forbidden" },
+                    "422": { "$ref": "#/components/responses/ValidationError" }
+                }
+            }
+        },
+        "/apps/{name}": {
+            "get": {
+                "tags": ["Apps"],
+                "summary": "Show app",
+                "description": "Show app details. Requires `apps-view` ability.",
+                "operationId": "appShow",
+                "parameters": [
+                    { "$ref": "#/components/parameters/AppName" }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "App details",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/CliResponse"
+                                }
+                            }
+                        }
+                    },
+                    "400": { "$ref": "#/components/responses/BadRequest" },
+                    "401": { "$ref": "#/components/responses/Unauthorized" },
+                    "403": { "$ref": "#/components/responses/Forbidden" }
+                }
+            },
+            "put": {
+                "tags": ["Apps"],
+                "summary": "Edit app",
+                "description": "Edit an app (PHP version, branch, repository). Requires `apps-edit` ability.",
+                "operationId": "appEdit",
+                "parameters": [
+                    { "$ref": "#/components/parameters/AppName" }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/AppEditRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "App updated",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/CliResponse"
+                                }
+                            }
+                        }
+                    },
+                    "400": { "$ref": "#/components/responses/BadRequest" },
+                    "401": { "$ref": "#/components/responses/Unauthorized" },
+                    "403": { "$ref": "#/components/responses/Forbidden" },
+                    "422": { "$ref": "#/components/responses/ValidationError" }
+                }
+            },
+            "delete": {
+                "tags": ["Apps"],
+                "summary": "Delete app",
+                "description": "Permanently delete an app and all associated resources. Requires `apps-delete` ability.",
+                "operationId": "appDelete",
+                "parameters": [
+                    { "$ref": "#/components/parameters/AppName" }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "App deleted",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/CliResponse"
+                                }
+                            }
+                        }
+                    },
+                    "400": { "$ref": "#/components/responses/BadRequest" },
+                    "401": { "$ref": "#/components/responses/Unauthorized" },
+                    "403": { "$ref": "#/components/responses/Forbidden" }
+                }
+            }
+        },
+        "/apps/{name}/aliases": {
+            "get": {
+                "tags": ["Aliases"],
+                "summary": "List aliases",
+                "description": "List domain aliases for an app. Requires `aliases-view` ability.",
+                "operationId": "aliasList",
+                "parameters": [
+                    { "$ref": "#/components/parameters/AppName" }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Alias list",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/CliResponse"
+                                }
+                            }
+                        }
+                    },
+                    "400": { "$ref": "#/components/responses/BadRequest" },
+                    "401": { "$ref": "#/components/responses/Unauthorized" },
+                    "403": { "$ref": "#/components/responses/Forbidden" }
+                }
+            }
+        },
+        "/apps/{name}/aliases/{alias}": {
+            "post": {
+                "tags": ["Aliases"],
+                "summary": "Add alias",
+                "description": "Add a domain alias to an app. Requires `aliases-create` ability.",
+                "operationId": "aliasCreate",
+                "parameters": [
+                    { "$ref": "#/components/parameters/AppName" },
+                    { "$ref": "#/components/parameters/AliasDomain" }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Alias added",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/CliResponse"
+                                }
+                            }
+                        }
+                    },
+                    "400": { "$ref": "#/components/responses/BadRequest" },
+                    "401": { "$ref": "#/components/responses/Unauthorized" },
+                    "403": { "$ref": "#/components/responses/Forbidden" }
+                }
+            },
+            "delete": {
+                "tags": ["Aliases"],
+                "summary": "Remove alias",
+                "description": "Remove a domain alias from an app. Requires `aliases-delete` ability.",
+                "operationId": "aliasDelete",
+                "parameters": [
+                    { "$ref": "#/components/parameters/AppName" },
+                    { "$ref": "#/components/parameters/AliasDomain" }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Alias removed",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/CliResponse"
+                                }
+                            }
+                        }
+                    },
+                    "400": { "$ref": "#/components/responses/BadRequest" },
+                    "401": { "$ref": "#/components/responses/Unauthorized" },
+                    "403": { "$ref": "#/components/responses/Forbidden" }
+                }
+            }
+        },
+        "/ssl/{name}": {
+            "post": {
+                "tags": ["SSL"],
+                "summary": "Install SSL",
+                "description": "Install Let's Encrypt SSL certificate for an app (primary domain + all aliases). Requires `ssl-manage` ability.",
+                "operationId": "sslInstall",
+                "parameters": [
+                    { "$ref": "#/components/parameters/AppName" }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "SSL installed",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/CliResponse"
+                                }
+                            }
+                        }
+                    },
+                    "400": { "$ref": "#/components/responses/BadRequest" },
+                    "401": { "$ref": "#/components/responses/Unauthorized" },
+                    "403": { "$ref": "#/components/responses/Forbidden" }
+                }
+            }
+        }
+    },
+    "components": {
+        "securitySchemes": {
+            "BearerAuth": {
+                "type": "http",
+                "scheme": "bearer",
+                "description": "Sanctum API token. Create with: cipi api token create"
+            }
+        },
+        "parameters": {
+            "AppName": {
+                "name": "name",
+                "in": "path",
+                "required": true,
+                "description": "App username (e.g. myapp)",
+                "schema": {
+                    "type": "string",
+                    "pattern": "^[a-z][a-z0-9]{2,31}$"
+                }
+            },
+            "AliasDomain": {
+                "name": "alias",
+                "in": "path",
+                "required": true,
+                "description": "Domain alias (e.g. www.example.com)",
+                "schema": {
+                    "type": "string",
+                    "format": "hostname"
+                }
+            }
+        },
+        "schemas": {
+            "AppCreateRequest": {
+                "type": "object",
+                "required": ["user", "domain", "repository"],
+                "properties": {
+                    "user": {
+                        "type": "string",
+                        "description": "App username (lowercase, min 3 chars)",
+                        "pattern": "^[a-z][a-z0-9]*$",
+                        "minLength": 3,
+                        "maxLength": 32,
+                        "example": "myapp"
+                    },
+                    "domain": {
+                        "type": "string",
+                        "description": "Primary domain",
+                        "example": "myapp.example.com"
+                    },
+                    "repository": {
+                        "type": "string",
+                        "description": "Git repository URL (SSH)",
+                        "example": "git@github.com:user/repo.git"
+                    },
+                    "branch": {
+                        "type": "string",
+                        "description": "Git branch",
+                        "default": "main",
+                        "example": "main"
+                    },
+                    "php": {
+                        "type": "string",
+                        "description": "PHP version",
+                        "enum": ["7.4", "8.0", "8.1", "8.2", "8.3", "8.4", "8.5"],
+                        "default": "8.4",
+                        "example": "8.4"
+                    }
+                }
+            },
+            "AppEditRequest": {
+                "type": "object",
+                "properties": {
+                    "php": {
+                        "type": "string",
+                        "enum": ["7.4", "8.0", "8.1", "8.2", "8.3", "8.4", "8.5"],
+                        "description": "PHP version"
+                    },
+                    "branch": {
+                        "type": "string",
+                        "description": "Git branch",
+                        "maxLength": 64
+                    },
+                    "repository": {
+                        "type": "string",
+                        "description": "Git repository URL"
+                    }
+                }
+            },
+            "AppListResponse": {
+                "type": "object",
+                "properties": {
+                    "data": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "app": { "type": "string" },
+                                "domain": { "type": "string" },
+                                "php": { "type": "string" },
+                                "created": { "type": "string" }
+                            }
+                        }
+                    },
+                    "raw": { "type": "string" }
+                }
+            },
+            "CliResponse": {
+                "type": "object",
+                "properties": {
+                    "data": {
+                        "type": "string",
+                        "description": "CLI output"
+                    },
+                    "raw": {
+                        "type": "string",
+                        "description": "Raw CLI output"
+                    }
+                }
+            },
+            "ErrorResponse": {
+                "type": "object",
+                "properties": {
+                    "error": {
+                        "type": "string",
+                        "description": "Error message"
+                    }
+                }
+            }
+        },
+        "responses": {
+            "Unauthorized": {
+                "description": "Missing or invalid token",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "message": { "type": "string", "example": "Unauthenticated." }
+                            }
+                        }
+                    }
+                }
+            },
+            "Forbidden": {
+                "description": "Token lacks required ability",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "message": { "type": "string", "example": "Invalid ability provided." }
+                            }
+                        }
+                    }
+                }
+            },
+            "BadRequest": {
+                "description": "CLI command failed",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "ValidationError": {
+                "description": "Validation error",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "message": { "type": "string" },
+                                "errors": {
+                                    "type": "object",
+                                    "additionalProperties": {
+                                        "type": "array",
+                                        "items": { "type": "string" }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "tags": [
+        { "name": "Apps", "description": "App management" },
+        { "name": "Aliases", "description": "Domain alias management" },
+        { "name": "SSL", "description": "SSL certificate management" }
+    ]
+}

@@ -100,6 +100,11 @@ show_help() {
     echo -e "    ${CYAN}cipi db backup <name>${NC}               Backup database"
     echo -e "    ${CYAN}cipi db restore <name> <file>${NC}        Restore database"
     echo ""
+    echo -e "  ${BOLD}${CYAN}API${NC}"
+    echo -e "    ${CYAN}cipi api <domain>${NC}                 Configure API at domain"
+    echo -e "    ${CYAN}cipi api ssl${NC}                      SSL for API domain"
+    echo -e "    ${CYAN}cipi api token list|create|revoke${NC} API token management"
+    echo ""
     echo -e "  ${BOLD}${CYAN}SSL / PHP / FIREWALL / BACKUP${NC}"
     echo -e "    ${CYAN}cipi ssl install <app>${NC}              SSL certificate"
     echo -e "    ${CYAN}cipi ssl renew${NC}                      Renew all certs"
@@ -177,6 +182,7 @@ main() {
         backup)     require_root; source "${CIPI_LIB}/backup.sh";      backup_command "$@" ;;
         self-update) require_root; source "${CIPI_LIB}/self-update.sh"; selfupdate_command "$@" ;;
         service)    require_root; source "${CIPI_LIB}/service.sh";    service_command "$@" ;;
+        api)        require_root; source "${CIPI_LIB}/api.sh";       api_command "$@" ;;
         *) error "Unknown command: $cmd"; echo "Run 'cipi help'"; exit 1 ;;
     esac
 }

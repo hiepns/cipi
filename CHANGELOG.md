@@ -4,6 +4,24 @@ All notable changes to Cipi are documented in this file.
 
 ---
 
+## [4.0.6] — 2026-03-05
+
+### Added
+
+- **Global API**: `cipi api <domain>` — configure API at root (e.g. api.miohosting.it), no aliases
+- **API SSL**: `cipi api ssl` — install Let's Encrypt certificate for API domain
+- **API tokens**: `cipi api token list|create|revoke` — manage Sanctum tokens (abilities: apps-view, apps-create, apps-edit, apps-delete, ssl-manage, aliases-view, aliases-create, aliases-delete, mcp-access)
+- **REST API** (Bearer token): `GET/POST/PUT/DELETE /api/apps`, `GET/POST/DELETE /api/apps/{name}/aliases`, `POST /api/ssl/{name}`
+- **Swagger/OpenAPI docs** at `/docs` — interactive API documentation via Swagger UI
+- **MCP server** at `/mcp` — requires `mcp-access` ability, tools for app/alias/SSL management
+- **Dedicated PHP-FPM pool** `cipi-api` for the API (isolated from app pools, up to 10 workers)
+
+### Changed
+
+- `cipi app delete <app> --force` — skip confirmation for non-interactive use
+
+---
+
 ## [4.0.5] — 2026-03-05
 
 ### Fixed

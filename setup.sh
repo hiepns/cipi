@@ -572,6 +572,11 @@ install_cipi() {
     cp cipi-install/lib/*.sh /opt/cipi/lib/
     chmod 700 /opt/cipi/lib/*.sh
 
+    # API overlay (for cipi api)
+    if [ -d "cipi-install/api" ]; then
+        cp -a cipi-install/api /opt/cipi/api-overlay
+    fi
+
     # Worker helper
     cp cipi-install/lib/cipi-worker /usr/local/bin/cipi-worker
     chmod 700 /usr/local/bin/cipi-worker
@@ -591,6 +596,12 @@ install_cipi() {
 
     # Version
     echo "$BUILD" > /etc/cipi/version
+
+    # Sudoers for API (www-data runs cipi via sudo)
+    if [ ! -f /etc/sudoers.d/cipi-api ]; then
+        echo 'www-data ALL=(root) NOPASSWD: /usr/local/bin/cipi *' > /etc/sudoers.d/cipi-api
+        chmod 440 /etc/sudoers.d/cipi-api
+    fi
 
     rm -rf /tmp/cipi-install
 

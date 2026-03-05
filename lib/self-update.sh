@@ -25,6 +25,7 @@ selfupdate_command() {
     cp "${tmp}/cipi" /usr/local/bin/cipi; chmod 700 /usr/local/bin/cipi
     cp "${tmp}"/lib/*.sh /opt/cipi/lib/; chmod 700 /opt/cipi/lib/*.sh
     [[ -f "${tmp}/lib/cipi-worker" ]] && cp "${tmp}/lib/cipi-worker" /usr/local/bin/cipi-worker && chmod 700 /usr/local/bin/cipi-worker
+    [[ -d "${tmp}/api" ]] && rm -rf /opt/cipi/api-overlay && cp -a "${tmp}/api" /opt/cipi/api-overlay
     chown -R root:root /usr/local/bin/cipi /opt/cipi
 
     # Run migrations

@@ -14,8 +14,8 @@ app_create() {
     [[ -z "$app_user" ]]    && read_input "App username (lowercase, min 3 chars)" "" app_user
     [[ -z "$domain" ]]      && read_input "Primary domain" "" domain
     [[ -z "$repository" ]]  && read_input "Git repository URL (SSH)" "" repository
-    read_input "Branch" "$branch" branch
-    read_input "PHP version" "$php_ver" php_ver
+    [[ -z "${ARG_branch:-}" ]] && read_input "Branch" "$branch" branch
+    [[ -z "${ARG_php:-}" ]]   && read_input "PHP version" "$php_ver" php_ver
 
     # Validate
     validate_username "$app_user"  || { error "Invalid username '${app_user}'"; exit 1; }
@@ -293,12 +293,16 @@ app_edit() {
 # ── DELETE ────────────────────────────────────────────────────
 
 app_delete() {
-    local app="${1:-}"; [[ -z "$app" ]] && { error "Usage: cipi app delete <app>"; exit 1; }
+    local app="${1:-}"; shift || true
+    [[ -z "$app" ]] && { error "Usage: cipi app delete <app> [--force]"; exit 1; }
     app_exists "$app" || { error "App '$app' not found"; exit 1; }
+    parse_args "$@"
     local d; d=$(app_get "$app" domain); local p; p=$(app_get "$app" php)
 
-    echo ""; warn "Will permanently delete: user, home, database, vhost, workers, SSL"
-    confirm "Delete '${app}'?" || { info "Cancelled"; return; }
+    if [[ "${ARG_force:-}" != "true" ]]; then
+        echo ""; warn "Will permanently delete: user, home, database, vhost, workers, SSL"
+        confirm "Delete '${app}'?" || { info "Cancelled"; return; }
+    fi
 
     step "Workers...";     supervisorctl stop "${app}-worker-*" 2>/dev/null||true; rm -f "/etc/supervisor/conf.d/${app}.conf"; reload_supervisor
     step "Nginx...";       rm -f "/etc/nginx/sites-enabled/${app}" "/etc/nginx/sites-available/${app}"; reload_nginx
