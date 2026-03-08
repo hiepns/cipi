@@ -3,6 +3,7 @@
 # Cipi Migration 4.2.2
 # - Fix default nginx host to always serve index.html
 # - Install PAM auth notifications (sudo & SSH)
+# - Fix cipi ssh list/remove silent exit (set -e + arithmetic)
 #############################################
 
 set -e
@@ -48,7 +49,7 @@ if [[ -x /usr/local/bin/cipi-auth-notify ]]; then
     echo "PAM auth notifications installed"
 fi
 
-echo "Migration 4.2.2 complete"
+echo "Migration 4.2.2 complete (includes fix: cipi ssh list/remove with set -e)"
 
 
 # ── Restrict www-data sudoers ─────────────────────────────────

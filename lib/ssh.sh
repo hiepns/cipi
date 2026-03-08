@@ -48,7 +48,7 @@ _ssh_list() {
     local i=0
     while IFS= read -r line; do
         [[ -z "$line" || "$line" == \#* ]] && continue
-        ((i++))
+        (( i++ )) || true
 
         # Extract key type, fingerprint and comment
         local key_type comment fingerprint
@@ -168,7 +168,7 @@ _ssh_remove() {
 
         local i=0
         for k in "${keys[@]}"; do
-            ((i++))
+            (( i++ )) || true
             local comment
             comment=$(echo "$k" | awk '{$1=$2=""; print}' | xargs)
             [[ -z "$comment" ]] && comment="(no comment)"
@@ -229,7 +229,7 @@ _ssh_remove() {
             echo "$line" >> "$tmp"
             continue
         fi
-        ((idx++))
+        (( idx++ )) || true
         [[ $idx -ne $target ]] && echo "$line" >> "$tmp"
     done < "$AUTHORIZED_KEYS"
 
