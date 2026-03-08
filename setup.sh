@@ -178,7 +178,7 @@ collect_ssh_key() {
         SSH_PUBKEY=""
         while true; do
             echo -en "  ${BOLD}Paste your SSH public key:${NC} "
-            read -r SSH_PUBKEY
+            read -r SSH_PUBKEY < /dev/tty
             if [[ -z "$SSH_PUBKEY" ]]; then
                 echo -e "  ${RED}SSH public key is required.${NC}"
                 continue
