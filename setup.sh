@@ -167,21 +167,30 @@ collect_ssh_key() {
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
     echo ""
 
-    SSH_PUBKEY=""
-    while true; do
-        echo -en "  ${BOLD}Paste your SSH public key:${NC} "
-        read -r SSH_PUBKEY
-        if [[ -z "$SSH_PUBKEY" ]]; then
-            echo -e "  ${RED}SSH public key is required.${NC}"
-            continue
-        fi
-        # Validate format (ssh-rsa, ssh-ed25519, ecdsa-sha2-*)
+    # Accept key from environment variable or interactive input
+    if [[ -n "$SSH_PUBKEY" ]]; then
         if ! echo "$SSH_PUBKEY" | grep -qE '^(ssh-(rsa|ed25519)|ecdsa-sha2-\S+) '; then
-            echo -e "  ${RED}Invalid key format. Must start with ssh-rsa, ssh-ed25519, or ecdsa-sha2-*${NC}"
-            continue
+            echo -e "  ${RED}Invalid SSH_PUBKEY format. Must start with ssh-rsa, ssh-ed25519, or ecdsa-sha2-*${NC}"
+            exit 1
         fi
-        break
-    done
+        echo -e "  ${GREEN}✓ SSH key provided via environment${NC}"
+    else
+        SSH_PUBKEY=""
+        while true; do
+            echo -en "  ${BOLD}Paste your SSH public key:${NC} "
+            read -r SSH_PUBKEY
+            if [[ -z "$SSH_PUBKEY" ]]; then
+                echo -e "  ${RED}SSH public key is required.${NC}"
+                continue
+            fi
+            # Validate format (ssh-rsa, ssh-ed25519, ecdsa-sha2-*)
+            if ! echo "$SSH_PUBKEY" | grep -qE '^(ssh-(rsa|ed25519)|ecdsa-sha2-\S+) '; then
+                echo -e "  ${RED}Invalid key format. Must start with ssh-rsa, ssh-ed25519, or ecdsa-sha2-*${NC}"
+                continue
+            fi
+            break
+        done
+    fi
 
     echo -e "${GREEN}✓ SSH key accepted${NC}"
 }
