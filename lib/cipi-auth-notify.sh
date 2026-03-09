@@ -26,11 +26,14 @@ TTY="${PAM_TTY:-unknown}"
 
 # ── Helper functions ─────────────────────────────────────────
 
-# Resolve SSH key name for a given login user (who authenticated via SSH).
+# Resolve SSH key name and optionally client IP for a given login user.
 # For sudo/su: pass the session user (cipi), not the target (root).
+# When RHOST is "local" (e.g. su), we search auth.log for the most recent SSH login.
+# Sets RESOLVED_CLIENT_IP when found from auth.log (for su/sudo over SSH).
 _resolve_ssh_key_name() {
     local login_user="${1:-$USER}"
     local fp=""
+    RESOLVED_CLIENT_IP=""
 
     local auth_file="${SSH_USER_AUTH:-}"
     if [[ -n "$auth_file" && -f "$auth_file" ]]; then
@@ -39,7 +42,12 @@ _resolve_ssh_key_name() {
 
     if [[ -z "$fp" && -f /var/log/auth.log ]]; then
         local log_line
-        log_line=$(grep "Accepted publickey for ${login_user} from ${RHOST}" /var/log/auth.log 2>/dev/null | tail -1)
+        if [[ "$RHOST" == "local" ]]; then
+            log_line=$(grep "Accepted publickey for ${login_user} " /var/log/auth.log 2>/dev/null | tail -1)
+            [[ -n "$log_line" ]] && RESOLVED_CLIENT_IP=$(echo "$log_line" | grep -oE 'from [0-9.]+' | head -1 | awk '{print $2}')
+        else
+            log_line=$(grep "Accepted publickey for ${login_user} from ${RHOST}" /var/log/auth.log 2>/dev/null | tail -1)
+        fi
         [[ -n "$log_line" ]] && fp=$(echo "$log_line" | grep -o 'SHA256:[^ ]*')
     fi
 
@@ -100,6 +108,7 @@ case "$SERVICE" in
         SUDO_BY=$(_resolve_sudo_user)
         SSH_KEY_NAME=$(_resolve_ssh_key_name "$SUDO_BY")
         [[ -z "$SSH_KEY_NAME" ]] && SSH_KEY_NAME="unknown"
+        DISPLAY_FROM="${RESOLVED_CLIENT_IP:-$RHOST}"
         SUDO_CMD="${SUDO_COMMAND:-}"
         SUBJECT="Cipi security: sudo by ${SUDO_BY} (${HOSTNAME})"
         BODY="Sudo elevation detected on ${HOSTNAME}
@@ -107,7 +116,7 @@ case "$SERVICE" in
 User:      ${SUDO_BY}
 Target:    ${USER}
 Command:   ${SUDO_CMD:-<interactive>}
-From:      ${RHOST}
+From:      ${DISPLAY_FROM}
 SSH Key:   ${SSH_KEY_NAME}
 TTY:       ${TTY}
 Time:      ${TIMESTAMP}"
@@ -118,6 +127,7 @@ Time:      ${TIMESTAMP}"
         fi
         SSH_KEY_NAME=$(_resolve_ssh_key_name "$USER")
         [[ -z "$SSH_KEY_NAME" ]] && SSH_KEY_NAME="unknown"
+        DISPLAY_FROM="${RESOLVED_CLIENT_IP:-$RHOST}"
         SUBJECT="Cipi security: SSH login ${USER}@${HOSTNAME}"
         BODY="SSH login detected on ${HOSTNAME}
 
@@ -132,12 +142,13 @@ Time:      ${TIMESTAMP}"
         SU_BY=$(_resolve_sudo_user)
         SSH_KEY_NAME=$(_resolve_ssh_key_name "$SU_BY")
         [[ -z "$SSH_KEY_NAME" ]] && SSH_KEY_NAME="unknown"
+        DISPLAY_FROM="${RESOLVED_CLIENT_IP:-$RHOST}"
         SUBJECT="Cipi security: su to ${USER} by ${SU_BY} (${HOSTNAME})"
         BODY="su elevation detected on ${HOSTNAME}
 
 User:      ${SU_BY}
 Target:    ${USER}
-From:      ${RHOST}
+From:      ${DISPLAY_FROM}
 SSH Key:   ${SSH_KEY_NAME}
 TTY:       ${TTY}
 Time:      ${TIMESTAMP}"
@@ -150,7 +161,7 @@ esac
 # ── Log event (always, regardless of SMTP) ───────────────────
 
 mkdir -p "$CIPI_LOG" 2>/dev/null || true
-echo "[${TIMESTAMP}] [${RHOST}] [key:${SSH_KEY_NAME}] ${SUBJECT}" >> "$EVENTS_LOG" 2>/dev/null || true
+echo "[${TIMESTAMP}] [${DISPLAY_FROM:-$RHOST}] [key:${SSH_KEY_NAME}] ${SUBJECT}" >> "$EVENTS_LOG" 2>/dev/null || true
 
 # ── Send email (only if SMTP configured) ─────────────────────
 
