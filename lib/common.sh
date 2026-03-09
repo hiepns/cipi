@@ -27,11 +27,23 @@ _get_client_ip() {
 }
 
 _get_session_key_name() {
-    local auth_file="${SSH_USER_AUTH:-}"
-    [[ -z "$auth_file" || ! -f "$auth_file" ]] && { echo "n/a"; return; }
+    local fp=""
 
-    local fp
-    fp=$(awk '/^publickey / {print $3; exit}' "$auth_file" 2>/dev/null)
+    # Method 1: SSH_USER_AUTH (requires ExposeAuthInfo=yes + env_keep in sudoers)
+    local auth_file="${SSH_USER_AUTH:-}"
+    if [[ -n "$auth_file" && -f "$auth_file" ]]; then
+        fp=$(awk '/^publickey / {print $3; exit}' "$auth_file" 2>/dev/null)
+    fi
+
+    # Method 2: auth.log fallback
+    if [[ -z "$fp" && -f /var/log/auth.log ]]; then
+        local client_ip; client_ip=$(_get_client_ip)
+        local login_user="${SUDO_USER:-cipi}"
+        local log_line
+        log_line=$(grep "Accepted publickey for ${login_user} from ${client_ip}" /var/log/auth.log 2>/dev/null | tail -1)
+        [[ -n "$log_line" ]] && fp=$(echo "$log_line" | grep -o 'SHA256:[^ ]*')
+    fi
+
     [[ -z "$fp" ]] && { echo "n/a"; return; }
 
     local ak="/home/cipi/.ssh/authorized_keys"
