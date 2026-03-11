@@ -631,6 +631,11 @@ CRON
         cp "${ad}/deploy.php" "${home}/.deployer/deploy.php"
         sed -i "s|set('bin/php', '/usr/bin/php[0-9]\.[0-9]')|set('bin/php', '/usr/bin/php${php_ver}')|" \
             "${home}/.deployer/deploy.php"
+        sed -i "s|set('bin/composer', '/usr/bin/php[0-9]\.[0-9] /usr/local/bin/composer')|set('bin/composer', '/usr/bin/php${php_ver} /usr/local/bin/composer')|" \
+            "${home}/.deployer/deploy.php"
+        if ! grep -q "bin/composer" "${home}/.deployer/deploy.php" 2>/dev/null; then
+            sed -i "/set('bin\/php'/a set('bin/composer', '/usr/bin/php${php_ver} /usr/local/bin/composer');" "${home}/.deployer/deploy.php"
+        fi
         chown -R "${app}:${app}" "${home}/.deployer"
         success "Deployer (restored)"
     else
@@ -736,6 +741,11 @@ _sync_update_app() {
         sed -i "s|php${cur_php}|php${php_ver}|g" "${home}/.bashrc" 2>/dev/null
         sed -i "s|set('bin/php', '/usr/bin/php[0-9]\.[0-9]')|set('bin/php', '/usr/bin/php${php_ver}')|" \
             "${home}/.deployer/deploy.php" 2>/dev/null
+        sed -i "s|set('bin/composer', '/usr/bin/php[0-9]\.[0-9] /usr/local/bin/composer')|set('bin/composer', '/usr/bin/php${php_ver} /usr/local/bin/composer')|" \
+            "${home}/.deployer/deploy.php" 2>/dev/null
+        if ! grep -q "bin/composer" "${home}/.deployer/deploy.php" 2>/dev/null; then
+            sed -i "/set('bin\/php'/a set('bin/composer', '/usr/bin/php${php_ver} /usr/local/bin/composer');" "${home}/.deployer/deploy.php" 2>/dev/null
+        fi
         sed -i "s|^CIPI_PHP_VERSION=.*|CIPI_PHP_VERSION=${php_ver}|" "${home}/shared/.env" 2>/dev/null
         success "PHP → ${php_ver}"
     fi
@@ -766,6 +776,11 @@ _sync_update_app() {
         cp "${ad}/deploy.php" "${home}/.deployer/deploy.php"
         sed -i "s|set('bin/php', '/usr/bin/php[0-9]\.[0-9]')|set('bin/php', '/usr/bin/php${php_ver}')|" \
             "${home}/.deployer/deploy.php"
+        sed -i "s|set('bin/composer', '/usr/bin/php[0-9]\.[0-9] /usr/local/bin/composer')|set('bin/composer', '/usr/bin/php${php_ver} /usr/local/bin/composer')|" \
+            "${home}/.deployer/deploy.php"
+        if ! grep -q "bin/composer" "${home}/.deployer/deploy.php" 2>/dev/null; then
+            sed -i "/set('bin\/php'/a set('bin/composer', '/usr/bin/php${php_ver} /usr/local/bin/composer');" "${home}/.deployer/deploy.php"
+        fi
         chown -R "${app}:${app}" "${home}/.deployer"
         success "Deployer synced"
     fi

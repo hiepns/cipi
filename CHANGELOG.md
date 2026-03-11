@@ -12,7 +12,7 @@ All notable changes to Cipi are documented in this file.
 
 ### Fixed
 
-- **App commands use wrong PHP version** — Deployer (`dep`), Composer, and all deploy-related commands now run with the app's configured PHP version (`/usr/bin/phpX.Y`) instead of the system default; affects `cipi deploy`, `cipi deploy --rollback`, crontab deploy triggers, `.bashrc` aliases (`deploy`, `composer`), and `cipi sync import` deploys
+- **App commands use wrong PHP version** — Deployer (`dep`), Composer, and all deploy-related commands now run with the app's configured PHP version (`/usr/bin/phpX.Y`) instead of the system default; affects `cipi deploy`, `cipi deploy --rollback`, crontab deploy triggers, `.bashrc` aliases (`deploy`, `composer`), and `cipi sync import` deploys; Deployer config now explicitly sets `bin/composer` to use the app's PHP; migration 4.2.9 patches all existing apps automatically
 
 ---
 

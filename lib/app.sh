@@ -310,6 +310,9 @@ app_edit() {
         reload_supervisor
         crontab -u "$app" -l 2>/dev/null | sed "s|php${cur_php}|php${np}|g" | crontab -u "$app" -
         sed -i "s|php${cur_php}|php${np}|g" "/home/${app}/.bashrc" "/home/${app}/.deployer/deploy.php" 2>/dev/null
+        if ! grep -q "bin/composer" "/home/${app}/.deployer/deploy.php" 2>/dev/null; then
+            sed -i "/set('bin\/php'/a set('bin/composer', '/usr/bin/php${np} /usr/local/bin/composer');" "/home/${app}/.deployer/deploy.php" 2>/dev/null
+        fi
         sed -i "s|^CIPI_PHP_VERSION=.*|CIPI_PHP_VERSION=${np}|" "/home/${app}/shared/.env"
         app_set "$app" php "$np"; success "PHP → $np"; changed=true
     fi
@@ -567,6 +570,7 @@ set('deploy_path', '${dh}');
 set('keep_releases', 5);
 set('git_ssh_command', 'ssh -i ${dh}/.ssh/id_ed25519 -o StrictHostKeyChecking=accept-new');
 set('bin/php', '/usr/bin/php${v}');
+set('bin/composer', '/usr/bin/php${v} /usr/local/bin/composer');
 set('writable_mode', 'chmod');
 
 add('shared_files', ['.env']);
