@@ -8,7 +8,7 @@
 app_create() {
     parse_args "$@"
     local app_user="${ARG_user:-}" domain="${ARG_domain:-}" repository="${ARG_repository:-}"
-    local branch="${ARG_branch:-main}" php_ver="${ARG_php:-8.4}"
+    local branch="${ARG_branch:-main}" php_ver="${ARG_php:-8.5}"
 
     # Interactive prompts for missing fields
     [[ -z "$app_user" ]]    && read_input "App username (lowercase, min 3 chars)" "" app_user
@@ -196,12 +196,17 @@ SUDO
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
     echo -e "  ${GREEN}${BOLD}APP CREATED: ${app_user}${NC}"
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    local server_ip; server_ip=$(curl -s --max-time 3 https://checkip.amazonaws.com 2>/dev/null || hostname)
     echo -e "  Domain:     ${CYAN}${domain}${NC}"
+    echo -e "  IP:         ${CYAN}${server_ip}${NC}"
     echo -e "  PHP:        ${CYAN}${php_ver}${NC}"
     echo -e "  Home:       ${CYAN}${home}${NC}"
     echo ""
     echo -e "  ${BOLD}SSH${NC}         ${CYAN}${app_user}${NC} / ${CYAN}${user_pass}${NC}"
     echo -e "  ${BOLD}Database${NC}    ${CYAN}${app_user}${NC} / ${CYAN}${db_pass}${NC}"
+    echo ""
+    echo -e "  ${BOLD}MariaDB URL${NC}"
+    echo -e "  ${CYAN}mariadb+ssh://${app_user}:${user_pass}@${server_ip}/${app_user}:${db_pass}@127.0.0.1/${app_user}${NC}"
     echo ""
     if [[ -n "${GIT_PROVIDER:-}" && -n "${GIT_DEPLOY_KEY_ID:-}" && -n "${GIT_WEBHOOK_ID:-}" ]]; then
         echo -e "  ${BOLD}Git${NC}         ${GREEN}${GIT_PROVIDER} auto-configured ✓${NC}"

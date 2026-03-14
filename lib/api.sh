@@ -46,7 +46,7 @@ api_setup() {
     # PHP-FPM pool for API
     step "PHP-FPM pool..."
     _api_create_fpm_pool
-    reload_php_fpm "8.4"
+    reload_php_fpm "8.5"
     success "PHP-FPM pool (cipi-api)"
 
     # Nginx vhost for API (no aliases)
@@ -179,7 +179,7 @@ SYSTEMD
 }
 
 _api_create_fpm_pool() {
-    cat > /etc/php/8.4/fpm/pool.d/cipi-api.conf <<POOL
+    cat > /etc/php/8.5/fpm/pool.d/cipi-api.conf <<POOL
 [cipi-api]
 user = www-data
 group = www-data
@@ -274,7 +274,7 @@ api_update() {
 
     # Restart services
     systemctl restart cipi-queue 2>/dev/null || true
-    reload_php_fpm "8.4"
+    reload_php_fpm "8.5"
 
     # Show versions
     _api_show_versions
@@ -368,7 +368,7 @@ api_upgrade() {
 
     # 8. Restart services
     systemctl restart cipi-queue 2>/dev/null || true
-    reload_php_fpm "8.4"
+    reload_php_fpm "8.5"
 
     # 9. Show result
     _api_show_versions

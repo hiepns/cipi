@@ -615,14 +615,14 @@ install_redis() {
 # ── PHP (multi-version) ──────────────────────────────────────
 
 install_php() {
-    step_msg "Installing PHP 8.4, 8.5..."
+    step_msg "Installing PHP 8.5..."
 
     add-apt-repository -y ppa:ondrej/php &>/dev/null
     apt-get update -qq
 
     local EXTENSIONS="fpm common cli curl bcmath mbstring mysql sqlite3 pgsql memcached zip xml soap gd imagick intl"
 
-    for VER in 8.4 8.5; do
+    for VER in 8.5; do
         echo -e "${CYAN}→ PHP ${VER}...${NC}"
 
         local PACKAGES=""
@@ -661,7 +661,7 @@ POOLEOF
     # Set 8.5 as default CLI
     update-alternatives --set php /usr/bin/php8.5 2>/dev/null || true
 
-    echo -e "${GREEN}✓ PHP 8.4, 8.5${NC}"
+    echo -e "${GREEN}✓ PHP 8.5${NC}"
 }
 
 # ── COMPOSER ──────────────────────────────────────────────────
@@ -1003,9 +1003,9 @@ final_summary() {
     echo ""
     echo -e "  ${BOLD}Stack${NC}"
     echo -e "  Nginx:          ${CYAN}$(nginx -v 2>&1 | awk -F/ '{print $2}')${NC}"
-    echo -e "  MariaDB:        ${CYAN}$(mariadb --version 2>/dev/null | grep -oP 'Distrib \K[^,]+' || echo "N/A")${NC}"
+    echo -e "  MariaDB:        ${CYAN}$(mariadb --version 2>&1 | awk -F'Distrib ' '{print $2}' | awk -F',' '{print $1}')${NC}"
     echo -e "  Redis:          ${CYAN}$(redis-server --version 2>/dev/null | awk '{print $3}' || echo "N/A")${NC}"
-    echo -e "  PHP:            ${CYAN}8.4, 8.5${NC}"
+    echo -e "  PHP:            ${CYAN}8.5${NC}"
     echo -e "  Node.js:        ${CYAN}$(node -v 2>/dev/null)${NC}"
     echo -e "  Composer:       ${CYAN}$(composer --version 2>/dev/null | awk '{print $3}')${NC}"
     echo -e "  Deployer:       ${CYAN}$(dep --version 2>/dev/null | awk '{print $2}')${NC}"

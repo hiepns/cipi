@@ -4,6 +4,24 @@ All notable changes to Cipi are documented in this file.
 
 ---
 
+## [4.3.2] — 2026-03-14
+
+### Added
+
+- **Server IP in app creation summary** — `cipi app create` now shows the server's public IP address right below the domain in the post-creation summary, making it easy to configure DNS records without leaving the terminal
+- **MariaDB connection URL in app creation summary** — `cipi app create` now displays a ready-to-use `mariadb+ssh://` connection URL after the database credentials; the URL includes SSH credentials, server IP, database credentials, and database name in a single copyable string (e.g. `mariadb+ssh://user:sshpass@1.2.3.4/user:dbpass@127.0.0.1/user`), useful for connecting from database clients like TablePlus, DBeaver, or Sequel Pro via SSH tunnel
+
+### Changed
+
+- **PHP 8.5 as sole pre-installed version** — The installer now installs only PHP 8.5 instead of both 8.4 and 8.5; PHP 8.5 is the default CLI version and the runtime used by the Cipi API FPM pool; other PHP versions (7.4–8.4) can still be installed on demand via `cipi php install <version>`
+- **Default PHP for new apps set to 8.5** — `cipi app create` now defaults to PHP 8.5 when no `--php` flag is provided
+
+### Fixed
+
+- **MariaDB version "N/A" in post-install summary** — `grep -oP` (Perl regex) is not available in all environments; replaced with portable `awk` parsing and redirected stderr to stdout (`2>&1`) since `mariadb --version` may write to stderr
+
+---
+
 ## [4.3.1] — 2026-03-12
 
 ### Fixed
