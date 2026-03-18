@@ -31,7 +31,7 @@ _deploy_run() {
         repo=$(app_get "$app" repository)
         branch=$(app_get "$app" branch)
         [[ -z "$repo" || -z "$php_ver" ]] && { error "App config incomplete (repository/php). Run: cipi app edit $app"; exit 1; }
-        _create_deployer_config "$app" "${repo}" "${branch:-main}" "$php_ver"
+        _create_deployer_config_for_app "$app"
         success "Deployer config created"
     fi
 

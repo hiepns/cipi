@@ -357,17 +357,9 @@ CRON
         success "Scheduler + deploy trigger"
     fi
 
-    # 11. Deployer config
+    # 11. Deployer config (dedicated template per app type)
     step "Deployer..."
-    if [[ "$app_type" == "wordpress" ]]; then
-        _create_deployer_config_wordpress "$app_user" "$repository" "$branch" "$php_ver"
-    elif [[ "$app_type" == "static" ]]; then
-        _create_deployer_config_static "$app_user" "$repository" "$branch" "$php_ver"
-    elif [[ "$app_type" == "generic" ]]; then
-        _create_deployer_config_generic "$app_user" "$repository" "$branch" "$php_ver"
-    else
-        _create_deployer_config "$app_user" "$repository" "$branch" "$php_ver"
-    fi
+    _create_deployer_config_from_template "$app_type" "$app_user" "$repository" "$branch" "$php_ver"
     success "Deployer"
 
     # 12. Sudoers (worker restart only)
@@ -434,7 +426,7 @@ SUDO
         echo ""
         echo -e "  ${BOLD}Next:${NC} cipi deploy ${app_user}"
         echo -e "        cipi ssl install ${app_user}"
-    else
+    elif [[ "$app_type" == "laravel" ]]; then
         if [[ -n "${GIT_PROVIDER:-}" && -n "${GIT_DEPLOY_KEY_ID:-}" && -n "${GIT_WEBHOOK_ID:-}" ]]; then
             echo -e "  ${BOLD}Git${NC}         ${GREEN}${GIT_PROVIDER} auto-configured ✓${NC}"
             echo -e "  ${BOLD}Webhook${NC}     ${CYAN}https://${domain}/cipi/webhook${NC}"
@@ -906,138 +898,37 @@ EOF
 }
 
 
-_create_deployer_config() {
-    local an="$1" repo="$2" branch="$3" v="$4"
+# Deployer: dedicated template per app type (lib/deployer/{laravel,wordpress,static,generic}.php)
+_create_deployer_config_from_template() {
+    local type="$1" an="$2" repo="$3" branch="$4" v="$5"
     local dh="/home/${an}"
-    cat > "${dh}/.deployer/deploy.php" <<'PHPTOP'
-<?php
-namespace Deployer;
-require 'recipe/laravel.php';
-
-PHPTOP
-    cat >> "${dh}/.deployer/deploy.php" <<PHP
-set('application', '${an}');
-set('repository', '${repo}');
-set('branch', '${branch}');
-set('deploy_path', '${dh}');
-set('keep_releases', 5);
-set('git_ssh_command', 'ssh -i ${dh}/.ssh/id_ed25519 -o StrictHostKeyChecking=accept-new');
-set('bin/php', '/usr/bin/php${v}');
-set('bin/composer', '/usr/bin/php${v} /usr/local/bin/composer');
-set('writable_mode', 'chmod');
-
-add('shared_files', ['.env']);
-add('shared_dirs', ['storage']);
-add('writable_dirs', [
-    'bootstrap/cache', 'storage', 'storage/app', 'storage/app/public',
-    'storage/framework', 'storage/framework/cache', 'storage/framework/cache/data',
-    'storage/framework/sessions', 'storage/framework/views', 'storage/logs',
-]);
-
-host('localhost')
-    ->set('remote_user', '${an}')
-    ->set('deploy_path', '${dh}')
-    ->set('ssh_arguments', ['-o StrictHostKeyChecking=accept-new', '-i ${dh}/.ssh/id_ed25519']);
-
-after('deploy:vendors', 'artisan:storage:link');
-after('deploy:vendors', 'artisan:migrate');
-after('deploy:vendors', 'artisan:optimize');
-before('deploy:symlink', 'workers:stop');
-after('deploy:symlink', 'artisan:queue:restart');
-after('deploy:symlink', 'workers:restart');
-
-task('workers:stop', function () {
-    run('sudo /usr/local/bin/cipi-worker stop ${an}');
-});
-
-task('workers:restart', function () {
-    run('sudo /usr/local/bin/cipi-worker restart ${an}');
-});
-PHP
+    local tpl="${CIPI_LIB}/deployer/${type}.php"
+    [[ -f "$tpl" ]] || { error "Deployer template not found: $tpl"; return 1; }
+    local repo_safe branch_safe
+    repo_safe=$(printf '%s' "$repo" | sed 's/\\/\\\\/g; s/&/\\&/g')
+    branch_safe=$(printf '%s' "$branch" | sed 's/\\/\\\\/g; s/&/\\&/g')
+    sed -e "s|__CIPI_APP_USER__|$an|g" \
+        -e "s|__CIPI_DEPLOY_PATH__|$dh|g" \
+        -e "s|__CIPI_PHP_VERSION__|$v|g" \
+        -e "s|__CIPI_REPOSITORY__|$repo_safe|g" \
+        -e "s|__CIPI_BRANCH__|$branch_safe|g" \
+        "$tpl" > "${dh}/.deployer/deploy.php"
     chown -R "${an}:${an}" "${dh}/.deployer"
 }
 
-_create_deployer_config_wordpress() {
-    local an="$1" repo="$2" branch="$3" v="$4"
-    local dh="/home/${an}"
-    cat > "${dh}/.deployer/deploy.php" <<PHP
-<?php
-namespace Deployer;
-require 'recipe/wordpress.php';
-
-set('application', '${an}');
-set('repository', '${repo}');
-set('branch', '${branch}');
-set('deploy_path', '${dh}');
-set('keep_releases', 5);
-set('git_ssh_command', 'ssh -i ${dh}/.ssh/id_ed25519 -o StrictHostKeyChecking=accept-new');
-set('bin/php', '/usr/bin/php${v}');
-set('bin/composer', '/usr/bin/php${v} /usr/local/bin/composer');
-set('writable_mode', 'chmod');
-
-add('shared_files', ['wp-config.php']);
-add('shared_dirs', ['wp-content']);
-set('writable_dirs', ['wp-content', 'wp-content/uploads']);
-
-host('localhost')
-    ->set('remote_user', '${an}')
-    ->set('deploy_path', '${dh}')
-    ->set('ssh_arguments', ['-o StrictHostKeyChecking=accept-new', '-i ${dh}/.ssh/id_ed25519']);
-PHP
-    chown -R "${an}:${an}" "${dh}/.deployer"
-}
-
-_create_deployer_config_static() {
-    local an="$1" repo="$2" branch="$3" v="$4"
-    local dh="/home/${an}"
-    cat > "${dh}/.deployer/deploy.php" <<PHP
-<?php
-namespace Deployer;
-require 'recipe/common.php';
-
-set('application', '${an}');
-set('repository', '${repo}');
-set('branch', '${branch}');
-set('deploy_path', '${dh}');
-set('keep_releases', 5);
-set('git_ssh_command', 'ssh -i ${dh}/.ssh/id_ed25519 -o StrictHostKeyChecking=accept-new');
-set('bin/php', '/usr/bin/php${v}');
-
-host('localhost')
-    ->set('remote_user', '${an}')
-    ->set('deploy_path', '${dh}')
-    ->set('ssh_arguments', ['-o StrictHostKeyChecking=accept-new', '-i ${dh}/.ssh/id_ed25519']);
-PHP
-    chown -R "${an}:${an}" "${dh}/.deployer"
-}
-
-_create_deployer_config_generic() {
-    local an="$1" repo="$2" branch="$3" v="$4"
-    local dh="/home/${an}"
-    cat > "${dh}/.deployer/deploy.php" <<PHP
-<?php
-namespace Deployer;
-require 'recipe/common.php';
-
-set('application', '${an}');
-set('repository', '${repo}');
-set('branch', '${branch}');
-set('deploy_path', '${dh}');
-set('keep_releases', 5);
-set('git_ssh_command', 'ssh -i ${dh}/.ssh/id_ed25519 -o StrictHostKeyChecking=accept-new');
-set('bin/php', '/usr/bin/php${v}');
-set('bin/composer', '/usr/bin/php${v} /usr/local/bin/composer');
-set('writable_mode', 'chmod');
-
-add('shared_files', ['.env']);
-add('shared_dirs', []);
-
-host('localhost')
-    ->set('remote_user', '${an}')
-    ->set('deploy_path', '${dh}')
-    ->set('ssh_arguments', ['-o StrictHostKeyChecking=accept-new', '-i ${dh}/.ssh/id_ed25519']);
-PHP
-    chown -R "${an}:${an}" "${dh}/.deployer"
+# Recreate deploy.php for an existing app (detects type from apps.json)
+_create_deployer_config_for_app() {
+    local app="$1"
+    local repo branch php_ver type
+    repo=$(app_get "$app" repository)
+    branch=$(app_get "$app" branch)
+    php_ver=$(app_get "$app" php)
+    if [[ "$(app_get "$app" wordpress)" == "true" ]]; then type="wordpress"
+    elif [[ "$(app_get "$app" static)" == "true" ]]; then type="static"
+    elif [[ "$(app_get "$app" generic)" == "true" ]]; then type="generic"
+    else type="laravel"
+    fi
+    _create_deployer_config_from_template "$type" "$app" "$repo" "${branch:-main}" "$php_ver"
 }
 
 # ── AUTH ──────────────────────────────────────────────────────

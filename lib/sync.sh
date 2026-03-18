@@ -639,7 +639,7 @@ CRON
         chown -R "${app}:${app}" "${home}/.deployer"
         success "Deployer (restored)"
     else
-        _create_deployer_config "$app" "$repository" "$branch" "$php_ver"
+        _create_deployer_config_for_app "$app"
         success "Deployer (recreated)"
     fi
 
