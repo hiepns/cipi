@@ -82,7 +82,73 @@ app_create() {
         mkdir -p "${home}"/{shared,logs,.ssh,.deployer}
         if [[ -z "$repository" ]]; then
             mkdir -p "${home}/htdocs"
-            echo '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Ready</title></head><body><p>Upload your site via SFTP to <code>~/htdocs</code> (this user).</p></body></html>' > "${home}/htdocs/index.html"
+            cat > "${home}/htdocs/index.html" <<HTML
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex, nofollow">
+<title>${domain}</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+    background: #ffffff;
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    color: #1a1a1a;
+  }
+  .container { text-align: center; animation: fadeIn 1s ease-in; }
+  .emoji-wrap {
+    font-size: 2.5rem;
+    line-height: 1;
+    margin-bottom: 1rem;
+  }
+  .host-text {
+    font-size: 1rem;
+    font-weight: 300;
+    letter-spacing: 4px;
+    color: #666;
+    margin-top: -0.25rem;
+  }
+  .sub-text {
+    font-size: 0.8125rem;
+    font-weight: 400;
+    color: #888;
+    margin-top: 0.65rem;
+    letter-spacing: 0.02em;
+  }
+  .status-text {
+    font-size: 0.75rem;
+    font-weight: 400;
+    color: #999;
+    margin-top: 0.45rem;
+    word-break: break-all;
+  }
+  @media (max-width: 600px) {
+    .emoji-wrap { font-size: 2rem; }
+    .host-text { font-size: 0.75rem; letter-spacing: 3px; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="emoji-wrap" aria-hidden="true">🚀</div>
+  <div class="host-text" id="host-label">${domain}</div>
+  <div class="sub-text">is currently being deployed.</div>
+  <div class="status-text">Please check back soon.</div>
+</div>
+<script>
+  var h = window.location.hostname;
+  document.getElementById('host-label').textContent = h;
+  document.title = h + ' · is currently being deployed.';
+</script>
+</body>
+</html>
+HTML
             chown "${app_user}:${app_user}" "${home}/htdocs/index.html"
         fi
     elif [[ "$app_type" == "laravel" ]]; then
