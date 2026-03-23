@@ -620,7 +620,7 @@ install_php() {
     add-apt-repository -y ppa:ondrej/php &>/dev/null
     apt-get update -qq
 
-    local EXTENSIONS="fpm common cli curl bcmath mbstring mysql sqlite3 pgsql memcached zip xml soap gd imagick intl"
+    local EXTENSIONS="fpm common cli curl bcmath mbstring mysql sqlite3 pgsql memcached redis zip xml soap gd imagick intl"
 
     for VER in 8.5; do
         echo -e "${CYAN}→ PHP ${VER}...${NC}"
