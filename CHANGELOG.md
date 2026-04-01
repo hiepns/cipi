@@ -4,6 +4,18 @@ All notable changes to Cipi are documented in this file.
 
 ---
 
+## [4.4.6] — 2026-04-02
+
+### Fixed
+
+- **App log access (`logs/`, Laravel `storage/logs`)** — App home directories are `750` (`app:app`), so the `cipi` user could not traverse `/home/<app>/` to read logs without root. Nginx vhost logs are written by `www-data`; logrotate used `create 0640 root …`, so after rotation files could be owned by `root` and no longer writable/readable as intended. New installs and migration **4.4.6** set `logs/` to `app:www-data` with setgid `2775`, apply **ACLs** so `cipi` can traverse the home and read logs, replace logrotate `create` with **`copytruncate`** (keeps correct ownership), and repair existing root-owned log files under `/home/*/logs/`.
+
+### Added
+
+- **`ensure_app_logs_permissions`** in `lib/common.sh` — Called from `cipi app create` and sync app import so new apps get the same layout from day one.
+
+---
+
 ## [4.4.5] — 2026-03-23
 
 ### Added

@@ -911,7 +911,7 @@ CRONEOF
     compress
     delaycompress
     notifempty
-    create 0640 root root
+    copytruncate
 }
 EOF
 
@@ -926,8 +926,8 @@ EOF
     compress
     delaycompress
     notifempty
-    create 0640 root adm
     sharedscripts
+    copytruncate
     postrotate
         [ -f /var/run/nginx.pid ] && kill -USR1 $(cat /var/run/nginx.pid) 2>/dev/null || true
     endscript

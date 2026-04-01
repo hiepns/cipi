@@ -174,6 +174,7 @@ PS1='\[\033[0;32m\]\u\[\033[0m\]@\h:\[\033[0;34m\]\w\[\033[0m\]\$ '
 BASH
     fi
     chown -R "${app_user}:${app_user}" "$home"
+    ensure_app_logs_permissions "$app_user"
     success "Directories"
 
     # 3. SSH deploy key (for GitHub) + authorized_keys (for Deployer localhost SSH)

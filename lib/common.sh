@@ -205,6 +205,39 @@ reload_supervisor() {
     supervisorctl update 2>&1 || warn "Supervisor update had issues (worker may start after first deploy)"
 }
 
+# App home is 750 (app:app): user cipi cannot traverse /home/<app>/ without ACLs.
+# Nginx writes vhost logs as www-data; directory uses setgid www-data so new files stay group-readable.
+# Laravel storage/logs stays app:app — only ACLs for cipi there.
+ensure_app_logs_permissions() {
+    local app="${1:-}"
+    [[ -z "$app" || "$app" == "cipi" ]] && return 0
+    local home="/home/${app}"
+    [[ -d "$home" ]] || return 0
+    id "$app" &>/dev/null || return 0
+
+    mkdir -p "${home}/logs"
+    chown "${app}:www-data" "${home}/logs"
+    chmod 2775 "${home}/logs"
+
+    if command -v setfacl &>/dev/null && id cipi &>/dev/null; then
+        setfacl -m u:cipi:rx "${home}" 2>/dev/null || true
+        setfacl -m u:cipi:rx "${home}/logs" 2>/dev/null || true
+        setfacl -d -m u:cipi:r "${home}/logs" 2>/dev/null || true
+        setfacl -R -m u:cipi:rX "${home}/logs" 2>/dev/null || true
+        if [[ -d "${home}/shared" ]]; then
+            setfacl -m u:cipi:rx "${home}/shared" 2>/dev/null || true
+        fi
+        if [[ -d "${home}/shared/storage" ]]; then
+            setfacl -m u:cipi:rx "${home}/shared/storage" 2>/dev/null || true
+        fi
+        if [[ -d "${home}/shared/storage/logs" ]]; then
+            setfacl -m u:cipi:rx "${home}/shared/storage/logs" 2>/dev/null || true
+            setfacl -d -m u:cipi:r "${home}/shared/storage/logs" 2>/dev/null || true
+            setfacl -R -m u:cipi:rX "${home}/shared/storage/logs" 2>/dev/null || true
+        fi
+    fi
+}
+
 _create_supervisor_worker() {
     local app="$1" v="$2" queue="${3:-default}" procs="${4:-1}" tries="${5:-3}" timeout="${6:-3600}"
     cat >> "/etc/supervisor/conf.d/${app}.conf" <<EOF

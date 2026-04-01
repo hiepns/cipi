@@ -585,6 +585,7 @@ SQL
 
     # 9. Ownership
     chown -R "${app}:${app}" "$home"
+    ensure_app_logs_permissions "$app"
 
     # 10. apps.json
     local app_json; app_json=$(jq --arg a "$app" '.[$a]' "${dir}/config/apps.json")
