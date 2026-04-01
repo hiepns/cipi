@@ -4,6 +4,14 @@ All notable changes to Cipi are documented in this file.
 
 ---
 
+## [4.4.13] — 2026-04-02
+
+### Fixed
+
+- **Root-owned Laravel logs (`shared/storage/logs/laravel-*.log`)** — Old logrotate `create 0640 root root` left rotated log files owned by `root:root`. The app user could not read them, breaking `spatie/laravel-backup` (ZipArchive Permission denied) and other tools that access logs. `ensure_app_logs_permissions` now reclaims root-owned files in both `logs/` and `shared/storage/logs/`, restoring ownership to the app user. **Migration 4.4.13** runs this for all apps.
+
+---
+
 ## [4.4.12] — 2026-04-02
 
 ### Fixed

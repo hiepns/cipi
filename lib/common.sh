@@ -242,6 +242,15 @@ ensure_app_logs_permissions() {
     chown "${app}:www-data" "${home}/logs"
     chmod 2775 "${home}/logs"
 
+    # Reclaim root-owned log files left by old logrotate "create" rules
+    if [[ -d "${home}/logs" ]]; then
+        find "${home}/logs" -type f -user root -exec chown "${app}:www-data" {} \; 2>/dev/null || true
+    fi
+    if [[ -d "${home}/shared/storage/logs" ]]; then
+        find "${home}/shared/storage/logs" -type f -user root -exec chown "${app}:${app}" {} \; 2>/dev/null || true
+        chmod 664 "${home}/shared/storage/logs"/*.log 2>/dev/null || true
+    fi
+
     if command -v setfacl &>/dev/null && id cipi &>/dev/null; then
         setfacl -m u:cipi:rx "${home}" 2>/dev/null || true
         setfacl -m u:cipi:rx "${home}/logs" 2>/dev/null || true
